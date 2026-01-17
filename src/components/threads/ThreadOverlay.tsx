@@ -182,8 +182,50 @@ function ThreadParticipantsCanvas({
     const height = dimensions.height;
     if (width === 0 || height === 0) return;
 
-    ctx.fillStyle = "#d1d5db";
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
+
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    const minorSpacing = 80;
+    const majorSpacing = minorSpacing * 5;
+    const minorScreen = minorSpacing * camera.zoom;
+
+    const leftWorld = camera.x - centerX / camera.zoom;
+    const rightWorld = camera.x + centerX / camera.zoom;
+    const topWorld = camera.y - centerY / camera.zoom;
+    const bottomWorld = camera.y + centerY / camera.zoom;
+
+    const drawGrid = (spacingWorld: number, strokeStyle: string) => {
+      if (!Number.isFinite(spacingWorld) || spacingWorld <= 0) return;
+      ctx.beginPath();
+
+      const startX = Math.floor(leftWorld / spacingWorld) * spacingWorld;
+      const endX = Math.ceil(rightWorld / spacingWorld) * spacingWorld;
+      for (let x = startX; x <= endX; x += spacingWorld) {
+        const sx = (x - camera.x) * camera.zoom + centerX;
+        ctx.moveTo(sx, 0);
+        ctx.lineTo(sx, height);
+      }
+
+      const startY = Math.floor(topWorld / spacingWorld) * spacingWorld;
+      const endY = Math.ceil(bottomWorld / spacingWorld) * spacingWorld;
+      for (let y = startY; y <= endY; y += spacingWorld) {
+        const sy = (y - camera.y) * camera.zoom + centerY;
+        ctx.moveTo(0, sy);
+        ctx.lineTo(width, sy);
+      }
+
+      ctx.strokeStyle = strokeStyle;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    };
+
+    if (minorScreen >= 18) {
+      drawGrid(minorSpacing, "rgba(15, 23, 42, 0.06)");
+    }
+    drawGrid(majorSpacing, "rgba(15, 23, 42, 0.10)");
 
     const minDim = Math.min(width, height);
     const ringRadius = Math.max(90, minDim * 0.3);

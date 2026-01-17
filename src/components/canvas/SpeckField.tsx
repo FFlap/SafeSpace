@@ -40,6 +40,34 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
     : null;
 }
 
+function clamp255(value: number): number {
+  return Math.max(0, Math.min(255, value));
+}
+
+function mixWithWhite(
+  rgb: { r: number; g: number; b: number },
+  amount: number
+): { r: number; g: number; b: number } {
+  const a = Math.max(0, Math.min(1, amount));
+  return {
+    r: Math.round(rgb.r * (1 - a) + 255 * a),
+    g: Math.round(rgb.g * (1 - a) + 255 * a),
+    b: Math.round(rgb.b * (1 - a) + 255 * a),
+  };
+}
+
+function mixWithBlack(
+  rgb: { r: number; g: number; b: number },
+  amount: number
+): { r: number; g: number; b: number } {
+  const a = Math.max(0, Math.min(1, amount));
+  return {
+    r: Math.round(rgb.r * (1 - a)),
+    g: Math.round(rgb.g * (1 - a)),
+    b: Math.round(rgb.b * (1 - a)),
+  };
+}
+
 function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   const t = text.trim().replace(/\s+/g, " ");
   if (!t) return "";
@@ -115,7 +143,7 @@ export function SpeckField({
   currentThreadId,
   bubbleColor,
   bubbleRadius = 420,
-  outsideColor = "#d1d5db",
+  outsideColor = "#ffffff",
   speechBubbles,
   onSpeckClick,
   onViewTransform,
@@ -203,9 +231,51 @@ export function SpeckField({
     const renderWidth = dimensions.width;
     const renderHeight = dimensions.height;
 
-    // Background (outside bubble)
+    // Background (white grid outside bubble)
     ctx.fillStyle = outsideColor;
     ctx.fillRect(0, 0, renderWidth, renderHeight);
+
+    const centerX = renderWidth / 2;
+    const centerY = renderHeight / 2;
+
+    const minorSpacing = 80;
+    const majorSpacing = minorSpacing * 5;
+    const minorScreen = minorSpacing * camera.zoom;
+
+    const leftWorld = camera.x - centerX / camera.zoom;
+    const rightWorld = camera.x + centerX / camera.zoom;
+    const topWorld = camera.y - centerY / camera.zoom;
+    const bottomWorld = camera.y + centerY / camera.zoom;
+
+    const drawGrid = (spacingWorld: number, strokeStyle: string) => {
+      if (!Number.isFinite(spacingWorld) || spacingWorld <= 0) return;
+      ctx.beginPath();
+
+      const startX = Math.floor(leftWorld / spacingWorld) * spacingWorld;
+      const endX = Math.ceil(rightWorld / spacingWorld) * spacingWorld;
+      for (let x = startX; x <= endX; x += spacingWorld) {
+        const sx = (x - camera.x) * camera.zoom + centerX;
+        ctx.moveTo(sx, 0);
+        ctx.lineTo(sx, renderHeight);
+      }
+
+      const startY = Math.floor(topWorld / spacingWorld) * spacingWorld;
+      const endY = Math.ceil(bottomWorld / spacingWorld) * spacingWorld;
+      for (let y = startY; y <= endY; y += spacingWorld) {
+        const sy = (y - camera.y) * camera.zoom + centerY;
+        ctx.moveTo(0, sy);
+        ctx.lineTo(renderWidth, sy);
+      }
+
+      ctx.strokeStyle = strokeStyle;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    };
+
+    if (minorScreen >= 18) {
+      drawGrid(minorSpacing, "rgba(15, 23, 42, 0.06)");
+    }
+    drawGrid(majorSpacing, "rgba(15, 23, 42, 0.10)");
 
     const bubbleCenter = worldToScreen(0, 0, renderWidth, renderHeight);
     const bubbleScreenRadius = bubbleRadius * camera.zoom;
@@ -213,30 +283,15 @@ export function SpeckField({
     // Bubble background
     if (bubbleColor) {
       const rgb = hexToRgb(bubbleColor);
-      if (rgb) {
-        const gradient = ctx.createRadialGradient(
-          bubbleCenter.x - bubbleScreenRadius * 0.3,
-          bubbleCenter.y - bubbleScreenRadius * 0.3,
-          0,
-          bubbleCenter.x,
-          bubbleCenter.y,
-          bubbleScreenRadius
-        );
-        gradient.addColorStop(
-          0,
-          `rgba(${Math.min(rgb.r + 60, 255)}, ${Math.min(rgb.g + 60, 255)}, ${Math.min(rgb.b + 60, 255)}, 0.95)`
-        );
-        gradient.addColorStop(0.7, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.9)`);
-        gradient.addColorStop(
-          1,
-          `rgba(${Math.max(rgb.r - 30, 0)}, ${Math.max(rgb.g - 30, 0)}, ${Math.max(rgb.b - 30, 0)}, 0.85)`
-        );
+      const calm = rgb ? mixWithWhite(rgb, 0.9) : null;
+      const border = calm ? mixWithBlack(calm, 0.08) : null;
 
+      if (calm) {
         ctx.save();
         ctx.beginPath();
         ctx.arc(bubbleCenter.x, bubbleCenter.y, bubbleScreenRadius, 0, Math.PI * 2);
         ctx.clip();
-        ctx.fillStyle = gradient;
+        ctx.fillStyle = `rgb(${clamp255(calm.r)}, ${clamp255(calm.g)}, ${clamp255(calm.b)})`;
         ctx.fillRect(0, 0, renderWidth, renderHeight);
         ctx.restore();
       }
@@ -244,7 +299,8 @@ export function SpeckField({
       // Bubble boundary
       ctx.beginPath();
       ctx.arc(bubbleCenter.x, bubbleCenter.y, bubbleScreenRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+      const bubbleBorder = border ?? { r: 15, g: 23, b: 42 };
+      ctx.strokeStyle = `rgb(${clamp255(bubbleBorder.r)}, ${clamp255(bubbleBorder.g)}, ${clamp255(bubbleBorder.b)})`;
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -283,6 +339,13 @@ export function SpeckField({
       ctx.arc(screenPos.x, screenPos.y, size, 0, Math.PI * 2);
       ctx.fillStyle = fillColor;
       ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(screenPos.x, screenPos.y, size, 0, Math.PI * 2);
+      ctx.strokeStyle =
+        fillColor === "#ffffff" ? "rgba(15, 23, 42, 0.25)" : "rgba(15, 23, 42, 0.18)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
     });
 
     // Draw current user at center for responsiveness.
@@ -294,6 +357,12 @@ export function SpeckField({
       ctx.arc(centerSpeck.x, centerSpeck.y, size, 0, Math.PI * 2);
       ctx.fillStyle = "#ffffff";
       ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(centerSpeck.x, centerSpeck.y, size, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(15, 23, 42, 0.25)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
 
       ctx.beginPath();
       ctx.arc(centerSpeck.x, centerSpeck.y, size + 2, 0, Math.PI * 2);

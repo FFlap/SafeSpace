@@ -26,6 +26,34 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
     : null;
 }
 
+function clamp255(value: number): number {
+  return Math.max(0, Math.min(255, value));
+}
+
+function mixWithWhite(
+  rgb: { r: number; g: number; b: number },
+  amount: number
+): { r: number; g: number; b: number } {
+  const a = Math.max(0, Math.min(1, amount));
+  return {
+    r: Math.round(rgb.r * (1 - a) + 255 * a),
+    g: Math.round(rgb.g * (1 - a) + 255 * a),
+    b: Math.round(rgb.b * (1 - a) + 255 * a),
+  };
+}
+
+function mixWithBlack(
+  rgb: { r: number; g: number; b: number },
+  amount: number
+): { r: number; g: number; b: number } {
+  const a = Math.max(0, Math.min(1, amount));
+  return {
+    r: Math.round(rgb.r * (1 - a)),
+    g: Math.round(rgb.g * (1 - a)),
+    b: Math.round(rgb.b * (1 - a)),
+  };
+}
+
 export function useCanvasRenderer({
   camera,
   spaces,
@@ -89,9 +117,48 @@ export function useCanvasRenderer({
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Draw background (gray, no grid)
-    ctx.fillStyle = "#d1d5db";
+    // Draw background (white grid)
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
+
+    const minorSpacing = 80;
+    const majorSpacing = minorSpacing * 5;
+    const minorScreen = minorSpacing * camera.zoom;
+
+    const leftWorld = camera.x - centerX / camera.zoom;
+    const rightWorld = camera.x + centerX / camera.zoom;
+    const topWorld = camera.y - centerY / camera.zoom;
+    const bottomWorld = camera.y + centerY / camera.zoom;
+
+    const drawGrid = (spacingWorld: number, strokeStyle: string) => {
+      if (!Number.isFinite(spacingWorld) || spacingWorld <= 0) return;
+      ctx.beginPath();
+
+      const startX = Math.floor(leftWorld / spacingWorld) * spacingWorld;
+      const endX = Math.ceil(rightWorld / spacingWorld) * spacingWorld;
+      for (let x = startX; x <= endX; x += spacingWorld) {
+        const sx = (x - camera.x) * camera.zoom + centerX;
+        ctx.moveTo(sx, 0);
+        ctx.lineTo(sx, height);
+      }
+
+      const startY = Math.floor(topWorld / spacingWorld) * spacingWorld;
+      const endY = Math.ceil(bottomWorld / spacingWorld) * spacingWorld;
+      for (let y = startY; y <= endY; y += spacingWorld) {
+        const sy = (y - camera.y) * camera.zoom + centerY;
+        ctx.moveTo(0, sy);
+        ctx.lineTo(width, sy);
+      }
+
+      ctx.strokeStyle = strokeStyle;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    };
+
+    if (minorScreen >= 18) {
+      drawGrid(minorSpacing, "rgba(15, 23, 42, 0.06)");
+    }
+    drawGrid(majorSpacing, "rgba(15, 23, 42, 0.10)");
 
     // Draw bubbles
     for (const space of spaces) {
@@ -111,41 +178,42 @@ export function useCanvasRenderer({
       const rgb = hexToRgb(space.color);
       if (!rgb) continue;
 
-      const gradient = ctx.createRadialGradient(
-        sx - sr * 0.3,
-        sy - sr * 0.3,
-        0,
-        sx,
-        sy,
-        sr
-      );
-      gradient.addColorStop(0, `rgba(${rgb.r + 40}, ${rgb.g + 40}, ${rgb.b + 40}, 0.9)`);
-      gradient.addColorStop(0.7, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.8)`);
-      gradient.addColorStop(1, `rgba(${rgb.r - 20}, ${rgb.g - 20}, ${rgb.b - 20}, 0.7)`);
+      const calm = mixWithWhite(rgb, 0.9);
+      const border = mixWithBlack(calm, 0.08);
 
       ctx.beginPath();
       ctx.arc(sx, sy, sr, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
+      ctx.save();
+      ctx.shadowColor = "rgba(15, 23, 42, 0.12)";
+      ctx.shadowBlur = Math.max(6, Math.min(18, 12 * camera.zoom));
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = Math.max(2, Math.min(10, 6 * camera.zoom));
+      ctx.fillStyle = `rgb(${clamp255(calm.r)}, ${clamp255(calm.g)}, ${clamp255(calm.b)})`;
       ctx.fill();
+      ctx.restore();
 
       // Draw border
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-      ctx.lineWidth = 2 * camera.zoom;
+      ctx.strokeStyle = `rgb(${clamp255(border.r)}, ${clamp255(border.g)}, ${clamp255(border.b)})`;
+      ctx.lineWidth = 2;
       ctx.stroke();
 
       // Draw name label
       const fontSize = Math.max(12, 14 * camera.zoom);
       ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      ctx.fillStyle = "white";
+      ctx.save();
+      ctx.shadowColor = "rgba(255, 255, 255, 0.9)";
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(space.name, sx, sy);
+      ctx.restore();
 
       // Draw user count if > 0
       if (space.activeUserCount > 0) {
         const countFontSize = Math.max(10, 11 * camera.zoom);
         ctx.font = `500 ${countFontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
-        ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+        ctx.fillStyle = "rgba(15, 23, 42, 0.6)";
         ctx.fillText(`${space.activeUserCount} active`, sx, sy + fontSize);
       }
     }

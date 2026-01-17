@@ -14,6 +14,37 @@ import { ThreadOverlay } from "@/components/threads/ThreadOverlay";
 import { useThreadMessages } from "@/hooks/useThreadMessages";
 import type { Id } from "../../../convex/_generated/dataModel";
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : null;
+}
+
+function toHexByte(value: number): string {
+  return Math.max(0, Math.min(255, value)).toString(16).padStart(2, "0");
+}
+
+function rgbToHex(rgb: { r: number; g: number; b: number }): string {
+  return `#${toHexByte(rgb.r)}${toHexByte(rgb.g)}${toHexByte(rgb.b)}`;
+}
+
+function mixWithWhite(
+  rgb: { r: number; g: number; b: number },
+  amount: number
+): { r: number; g: number; b: number } {
+  const a = Math.max(0, Math.min(1, amount));
+  return {
+    r: Math.round(rgb.r * (1 - a) + 255 * a),
+    g: Math.round(rgb.g * (1 - a) + 255 * a),
+    b: Math.round(rgb.b * (1 - a) + 255 * a),
+  };
+}
+
 interface PresenceUser {
   _id: Id<"spacePresence">;
   userId: Id<"users">;
@@ -64,6 +95,10 @@ export function SpaceOverlay({
   onScreenToWorldReady,
 }: SpaceOverlayProps) {
   const bubbleRadius = 260 + Math.sqrt(Math.max(1, presence.length)) * 120;
+  const calmSpaceColor = useMemo(() => {
+    const rgb = hexToRgb(spaceColor);
+    return rgb ? rgbToHex(mixWithWhite(rgb, 0.9)) : spaceColor;
+  }, [spaceColor]);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newThreadName, setNewThreadName] = useState("");
@@ -125,7 +160,7 @@ export function SpaceOverlay({
           currentThreadId={currentThreadId}
           bubbleColor={spaceColor}
           bubbleRadius={bubbleRadius}
-          outsideColor="#d1d5db"
+          outsideColor="#ffffff"
           speechBubbles={speechBubbles}
           onSpeckClick={(userId) => {
             if (!onRequestDm || !currentUserId) return;
@@ -193,7 +228,7 @@ export function SpaceOverlay({
           <div className="flex items-center gap-3 rounded-full bg-slate-950/80 backdrop-blur-md border border-white/10 px-4 py-2 shadow-lg">
             <div
               className="w-3.5 h-3.5 rounded-full ring-2 ring-white/20"
-              style={{ backgroundColor: spaceColor }}
+              style={{ backgroundColor: calmSpaceColor }}
             />
             <h2 className="text-xl font-semibold text-white">{spaceName}</h2>
           </div>
