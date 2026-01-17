@@ -1,0 +1,224 @@
+"use node";
+
+import { internalAction } from "../_generated/server";
+import { internal } from "../_generated/api";
+import Graph from "graphology";
+import louvain from "graphology-communities-louvain";
+
+interface SpacePosition {
+  spaceId: string;
+  position: { x: number; y: number };
+  clusterId: number;
+}
+
+export const computeClusters = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ success: boolean; clusters: number }> => {
+    const spaces = await ctx.runQuery(internal.spaces.internalQueries.getAllSpaces);
+    const links = await ctx.runQuery(internal.spaces.internalQueries.getAllLinks);
+
+    if (spaces.length === 0) return { success: true, clusters: 0 };
+
+    // Build graph
+    const graph = new Graph();
+
+    // Add nodes
+    for (const space of spaces) {
+      graph.addNode(space._id);
+    }
+
+    // Add edges with similarity as weight
+    for (const link of links) {
+      if (graph.hasNode(link.spaceA) && graph.hasNode(link.spaceB)) {
+        graph.addEdge(link.spaceA, link.spaceB, { weight: link.similarity });
+      }
+    }
+
+    // Run Louvain community detection
+    const communities = louvain(graph, { resolution: 1 });
+
+    // Get unique cluster IDs
+    const clusterIds = new Set(Object.values(communities));
+
+    // Update spaces with cluster IDs
+    const updates: SpacePosition[] = [];
+
+    for (const space of spaces) {
+      const clusterId = communities[space._id] ?? 0;
+      updates.push({
+        spaceId: space._id,
+        position: space.position,
+        clusterId,
+      });
+    }
+
+    // Batch update
+    if (updates.length > 0) {
+      await ctx.runMutation(internal.spaces.mutations.batchUpdatePositions, {
+        updates: updates as any,
+      });
+    }
+
+    return { success: true, clusters: clusterIds.size };
+  },
+});
+
+export const computeLayout = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ success: boolean }> => {
+    const spaces = await ctx.runQuery(internal.spaces.internalQueries.getAllSpaces);
+    const links = await ctx.runQuery(internal.spaces.internalQueries.getAllLinks);
+
+    if (spaces.length === 0) return { success: true };
+
+    // Group spaces by cluster
+    const clusterMap = new Map<number, typeof spaces>();
+    for (const space of spaces) {
+      const clusterId = space.clusterId ?? 0;
+      if (!clusterMap.has(clusterId)) {
+        clusterMap.set(clusterId, []);
+      }
+      clusterMap.get(clusterId)!.push(space);
+    }
+
+    // Build link map for force calculation
+    const linkMap = new Map<string, { target: string; weight: number }[]>();
+    for (const link of links) {
+      if (!linkMap.has(link.spaceA)) linkMap.set(link.spaceA, []);
+      if (!linkMap.has(link.spaceB)) linkMap.set(link.spaceB, []);
+      linkMap.get(link.spaceA)!.push({ target: link.spaceB, weight: link.similarity });
+      linkMap.get(link.spaceB)!.push({ target: link.spaceA, weight: link.similarity });
+    }
+
+    // Compute cluster centers in a circle
+    const clusters = Array.from(clusterMap.keys());
+    const clusterCenters = new Map<number, { x: number; y: number }>();
+    const centerRadius = 500;
+
+    for (let i = 0; i < clusters.length; i++) {
+      const angle = (2 * Math.PI * i) / clusters.length;
+      clusterCenters.set(clusters[i], {
+        x: Math.cos(angle) * centerRadius,
+        y: Math.sin(angle) * centerRadius,
+      });
+    }
+
+    // Initialize positions near cluster centers
+    const positions = new Map<string, { x: number; y: number }>();
+
+    for (const [clusterId, clusterSpaces] of clusterMap.entries()) {
+      const center = clusterCenters.get(clusterId)!;
+
+      for (let i = 0; i < clusterSpaces.length; i++) {
+        // Spread within cluster
+        const clusterAngle = (2 * Math.PI * i) / clusterSpaces.length;
+        const clusterRadius = Math.min(150, 50 + clusterSpaces.length * 20);
+
+        positions.set(clusterSpaces[i]._id, {
+          x: center.x + Math.cos(clusterAngle) * clusterRadius,
+          y: center.y + Math.sin(clusterAngle) * clusterRadius,
+        });
+      }
+    }
+
+    // Run simple force-directed simulation
+    const iterations = 100;
+    const repulsion = 5000;
+    const attraction = 0.01;
+    const damping = 0.9;
+
+    const velocities = new Map<string, { vx: number; vy: number }>();
+    for (const space of spaces) {
+      velocities.set(space._id, { vx: 0, vy: 0 });
+    }
+
+    for (let iter = 0; iter < iterations; iter++) {
+      // Repulsion between all nodes
+      for (let i = 0; i < spaces.length; i++) {
+        for (let j = i + 1; j < spaces.length; j++) {
+          const posI = positions.get(spaces[i]._id)!;
+          const posJ = positions.get(spaces[j]._id)!;
+
+          const dx = posJ.x - posI.x;
+          const dy = posJ.y - posI.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+          const force = repulsion / (dist * dist);
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+
+          const velI = velocities.get(spaces[i]._id)!;
+          const velJ = velocities.get(spaces[j]._id)!;
+
+          velI.vx -= fx;
+          velI.vy -= fy;
+          velJ.vx += fx;
+          velJ.vy += fy;
+        }
+      }
+
+      // Attraction along edges
+      for (const [spaceId, neighbors] of linkMap.entries()) {
+        const posA = positions.get(spaceId);
+        if (!posA) continue;
+
+        for (const { target, weight } of neighbors) {
+          const posB = positions.get(target);
+          if (!posB) continue;
+
+          const dx = posB.x - posA.x;
+          const dy = posB.y - posA.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+          const force = dist * attraction * weight;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+
+          const vel = velocities.get(spaceId)!;
+          vel.vx += fx;
+          vel.vy += fy;
+        }
+      }
+
+      // Pull toward cluster center
+      for (const space of spaces) {
+        const clusterId = space.clusterId ?? 0;
+        const center = clusterCenters.get(clusterId)!;
+        const pos = positions.get(space._id)!;
+        const vel = velocities.get(space._id)!;
+
+        const dx = center.x - pos.x;
+        const dy = center.y - pos.y;
+
+        vel.vx += dx * 0.001;
+        vel.vy += dy * 0.001;
+      }
+
+      // Apply velocities
+      for (const space of spaces) {
+        const pos = positions.get(space._id)!;
+        const vel = velocities.get(space._id)!;
+
+        pos.x += vel.vx;
+        pos.y += vel.vy;
+
+        vel.vx *= damping;
+        vel.vy *= damping;
+      }
+    }
+
+    // Build updates
+    const updates: SpacePosition[] = spaces.map((space) => ({
+      spaceId: space._id,
+      position: positions.get(space._id)!,
+      clusterId: space.clusterId ?? 0,
+    }));
+
+    // Batch update positions
+    await ctx.runMutation(internal.spaces.mutations.batchUpdatePositions, {
+      updates: updates as any,
+    });
+
+    return { success: true };
+  },
+});

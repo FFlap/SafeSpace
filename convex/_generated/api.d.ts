@@ -8,7 +8,20 @@
  * @module
  */
 
+import type * as clustering_actions from "../clustering/actions.js";
+import type * as config_mutations from "../config/mutations.js";
+import type * as crons from "../crons.js";
 import type * as functions from "../functions.js";
+import type * as presence_mutations from "../presence/mutations.js";
+import type * as presence_queries from "../presence/queries.js";
+import type * as seed_actions from "../seed/actions.js";
+import type * as spaces_actions from "../spaces/actions.js";
+import type * as spaces_internalQueries from "../spaces/internalQueries.js";
+import type * as spaces_mutations from "../spaces/mutations.js";
+import type * as spaces_queries from "../spaces/queries.js";
+import type * as threads_mutations from "../threads/mutations.js";
+import type * as threads_queries from "../threads/queries.js";
+import type * as threads_scheduler from "../threads/scheduler.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +30,20 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "clustering/actions": typeof clustering_actions;
+  "config/mutations": typeof config_mutations;
+  crons: typeof crons;
   functions: typeof functions;
+  "presence/mutations": typeof presence_mutations;
+  "presence/queries": typeof presence_queries;
+  "seed/actions": typeof seed_actions;
+  "spaces/actions": typeof spaces_actions;
+  "spaces/internalQueries": typeof spaces_internalQueries;
+  "spaces/mutations": typeof spaces_mutations;
+  "spaces/queries": typeof spaces_queries;
+  "threads/mutations": typeof threads_mutations;
+  "threads/queries": typeof threads_queries;
+  "threads/scheduler": typeof threads_scheduler;
 }>;
 
 /**

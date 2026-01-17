@@ -1,8 +1,8 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
-// Example query - customize as needed
-export const getUser = query({
+// Get user by Clerk ID
+export const getUserByClerkId = query({
   args: { clerkId: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
@@ -12,8 +12,11 @@ export const getUser = query({
   },
 });
 
-// Example mutation - customize as needed
-export const createOrUpdateUser = mutation({
+// Legacy alias
+export const getUser = getUserByClerkId;
+
+// Sync user from Clerk
+export const syncUser = mutation({
   args: {
     clerkId: v.string(),
     email: v.string(),
@@ -43,3 +46,6 @@ export const createOrUpdateUser = mutation({
     });
   },
 });
+
+// Legacy alias
+export const createOrUpdateUser = syncUser;
