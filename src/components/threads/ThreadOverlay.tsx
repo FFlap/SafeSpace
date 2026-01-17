@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCamera } from "@/components/canvas/hooks/useCamera";
 import { useDisableBrowserZoom } from "@/components/canvas/hooks/useDisableBrowserZoom";
-import { useKeyboardNav } from "@/components/canvas/hooks/useKeyboardNav";
 import {
   useThreadChatters,
   useThreadNameConsent,
@@ -26,6 +25,7 @@ interface ThreadOverlayProps {
   presence: PresenceUser[];
   currentUserId: Id<"users"> | null;
   joinedAt: number;
+  currentUserPosition?: { x: number; y: number };
   onRequestDm?: (userId: Id<"users">) => void;
   onClose: () => void;
   onLeave: () => void;
@@ -122,10 +122,12 @@ function drawSpeechBubble(
 function ThreadParticipantsCanvas({
   participants,
   speechBubbles,
+  currentUserPosition,
   onUserClick,
 }: {
   participants: Participant[];
   speechBubbles?: Array<{ userId: Id<"users">; body: string; createdAt: number }>;
+  currentUserPosition?: { x: number; y: number };
   onUserClick?: (userId: Id<"users">) => void;
 }) {
   const { camera, pan, zoomBy, worldToScreen } = useCamera();
@@ -140,17 +142,6 @@ function ThreadParticipantsCanvas({
   const didDrag = useRef(false);
 
   useDisableBrowserZoom(true);
-
-  useKeyboardNav({
-    onPan: pan,
-    onZoom: (delta) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      zoomBy(delta, rect.width / 2, rect.height / 2, rect.width, rect.height);
-    },
-    enabled: true,
-  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -235,12 +226,19 @@ function ThreadParticipantsCanvas({
     const now = Date.now();
 
     for (const participant of participants) {
-      const h1 = hashString(`${participant.userId}-a`) / 0xffffffff;
-      const h2 = hashString(`${participant.userId}-b`) / 0xffffffff;
-      const angle = h1 * Math.PI * 2;
-      const r = ringRadius + (h2 - 0.5) * jitter;
-      const worldX = Math.cos(angle) * r;
-      const worldY = Math.sin(angle) * r;
+      let worldX: number;
+      let worldY: number;
+      if (participant.isCurrentUser && currentUserPosition) {
+        worldX = currentUserPosition.x;
+        worldY = currentUserPosition.y;
+      } else {
+        const h1 = hashString(`${participant.userId}-a`) / 0xffffffff;
+        const h2 = hashString(`${participant.userId}-b`) / 0xffffffff;
+        const angle = h1 * Math.PI * 2;
+        const r = ringRadius + (h2 - 0.5) * jitter;
+        worldX = Math.cos(angle) * r;
+        worldY = Math.sin(angle) * r;
+      }
       const screen = worldToScreen(worldX, worldY, width, height);
       const x = screen.x;
       const y = screen.y;
@@ -279,7 +277,7 @@ function ThreadParticipantsCanvas({
         drawSpeechBubble(ctx, x, y, bubble.body);
       }
     }
-  }, [participants, speechBubbles, dimensions, camera.zoom, worldToScreen]);
+  }, [participants, speechBubbles, currentUserPosition, dimensions, camera.zoom, worldToScreen]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -364,6 +362,7 @@ export function ThreadOverlay({
   presence,
   currentUserId,
   joinedAt,
+  currentUserPosition,
   onRequestDm,
   onClose,
   onLeave,
@@ -568,6 +567,7 @@ export function ThreadOverlay({
           <ThreadParticipantsCanvas
             participants={participants}
             speechBubbles={speechBubbles}
+            currentUserPosition={currentUserPosition}
             onUserClick={(userId) => {
               if (!onRequestDm || !currentUserId) return;
               if (userId === currentUserId) return;

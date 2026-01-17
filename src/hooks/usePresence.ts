@@ -8,6 +8,7 @@ interface UsePresenceOptions {
   userId: Id<"users"> | null;
   currentThreadId: Id<"spaceThreads"> | null;
   enabled?: boolean;
+  getPosition?: () => { x: number; y: number };
   screenToWorld?: (x: number, y: number) => { x: number; y: number };
 }
 
@@ -16,11 +17,13 @@ export function usePresence({
   userId,
   currentThreadId,
   enabled = true,
+  getPosition,
   screenToWorld,
 }: UsePresenceOptions) {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const positionRef = useRef({ x: 0, y: 0 });
   const currentThreadIdRef = useRef<Id<"spaceThreads"> | null>(currentThreadId);
+  const getPositionRef = useRef<UsePresenceOptions["getPosition"]>(getPosition);
   const screenToWorldRef = useRef<UsePresenceOptions["screenToWorld"]>(screenToWorld);
   const updatePresence = useMutation(api.presence.mutations.updatePresence);
   const leaveSpace = useMutation(api.presence.mutations.leaveSpace);
@@ -30,10 +33,17 @@ export function usePresence({
   }, [currentThreadId]);
 
   useEffect(() => {
+    getPositionRef.current = getPosition;
+  }, [getPosition]);
+
+  useEffect(() => {
     screenToWorldRef.current = screenToWorld;
   }, [screenToWorld]);
 
   const getCurrentPosition = useCallback(() => {
+    const getPos = getPositionRef.current;
+    if (getPos) return getPos();
+
     const fn = screenToWorldRef.current;
     if (!fn) return positionRef.current;
     return fn(window.innerWidth / 2, window.innerHeight / 2);

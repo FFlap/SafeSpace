@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { ThreadOverlay } from "@/components/threads/ThreadOverlay";
 import { useThreadMessages } from "@/hooks/useThreadMessages";
+import { useKeyboardNav } from "@/components/canvas/hooks/useKeyboardNav";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -73,9 +74,7 @@ interface SpaceOverlayProps {
   onJoinThread: (threadId: Id<"spaceThreads">) => void;
   onLeaveThread: (threadId: Id<"spaceThreads">) => void;
   onRequestDm?: (userId: Id<"users">) => void;
-  onScreenToWorldReady?: (
-    screenToWorld: (x: number, y: number) => { x: number; y: number }
-  ) => void;
+  onCurrentUserPositionChange?: (pos: { x: number; y: number }) => void;
 }
 
 export function SpaceOverlay({
@@ -92,7 +91,7 @@ export function SpaceOverlay({
   onJoinThread,
   onLeaveThread,
   onRequestDm,
-  onScreenToWorldReady,
+  onCurrentUserPositionChange,
 }: SpaceOverlayProps) {
   const bubbleRadius = 260 + Math.sqrt(Math.max(1, presence.length)) * 120;
   const calmSpaceColor = useMemo(() => {
@@ -103,6 +102,12 @@ export function SpaceOverlay({
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newThreadName, setNewThreadName] = useState("");
   const [threadJoinedAt, setThreadJoinedAt] = useState<number>(Date.now());
+  const [currentUserPosition, setCurrentUserPosition] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
+  const currentUserPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const viewZoomRef = useRef(1);
 
   const currentThread = useMemo(
     () => threads.find((t) => t._id === currentThreadId) ?? null,
@@ -137,18 +142,78 @@ export function SpaceOverlay({
   }, [currentThreadId, presence, threadMessages]);
 
   const threadAnchorRef = useRef<HTMLDivElement>(null);
-  const handleViewTransform = useCallback(
-    ({ bubbleCenter, zoom }: { bubbleCenter: { x: number; y: number }; zoom: number }) => {
+  const viewTransformRef = useRef<{
+    bubbleCenter: { x: number; y: number };
+    zoom: number;
+  } | null>(null);
+
+  const updateThreadAnchor = useCallback(
+    (bubbleCenter: { x: number; y: number }, zoom: number, userPos: { x: number; y: number }) => {
       const anchor = threadAnchorRef.current;
       if (!anchor) return;
-      anchor.style.transform = `translate(${bubbleCenter.x}px, ${bubbleCenter.y}px)`;
+      const x = bubbleCenter.x + userPos.x * zoom;
+      const y = bubbleCenter.y + userPos.y * zoom;
+      anchor.style.transform = `translate(${x}px, ${y}px)`;
       anchor.style.setProperty("--zoom", `${zoom}`);
       anchor.style.setProperty("--invZoom", `${zoom ? 1 / zoom : 1}`);
+      viewZoomRef.current = zoom;
     },
     []
   );
 
+  const handleViewTransform = useCallback(
+    ({ bubbleCenter, zoom }: { bubbleCenter: { x: number; y: number }; zoom: number }) => {
+      viewTransformRef.current = { bubbleCenter, zoom };
+      updateThreadAnchor(bubbleCenter, zoom, currentUserPositionRef.current);
+    },
+    [updateThreadAnchor]
+  );
+
   const threadRingRadius = Math.max(140, Math.min(240, 120 + threads.length * 6));
+
+  useEffect(() => {
+    currentUserPositionRef.current = currentUserPosition;
+    onCurrentUserPositionChange?.(currentUserPosition);
+  }, [currentUserPosition, onCurrentUserPositionChange]);
+
+  useEffect(() => {
+    const vt = viewTransformRef.current;
+    if (!vt) return;
+    updateThreadAnchor(vt.bubbleCenter, vt.zoom, currentUserPosition);
+  }, [currentUserPosition, updateThreadAnchor]);
+
+  useEffect(() => {
+    setCurrentUserPosition((prev) => {
+      const maxRadius = Math.max(0, bubbleRadius - 16);
+      const dist = Math.hypot(prev.x, prev.y);
+      if (dist <= maxRadius) return prev;
+      if (dist === 0) return prev;
+      const scale = maxRadius / dist;
+      return { x: prev.x * scale, y: prev.y * scale };
+    });
+  }, [bubbleRadius]);
+
+  useKeyboardNav({
+    onPan: (dx, dy) => {
+      if (!currentUserId) return;
+      const zoom = Math.max(0.001, viewZoomRef.current || 1);
+      const stepX = dx / zoom;
+      const stepY = dy / zoom;
+
+      setCurrentUserPosition((prev) => {
+        const next = { x: prev.x + stepX, y: prev.y + stepY };
+        const maxRadius = Math.max(0, bubbleRadius - 16);
+        const dist = Math.hypot(next.x, next.y);
+        if (dist <= maxRadius) return next;
+        if (dist === 0) return prev;
+        const scale = maxRadius / dist;
+        return { x: next.x * scale, y: next.y * scale };
+      });
+    },
+    onZoom: () => {},
+    enabled: Boolean(currentUserId),
+    panSpeed: 36,
+  });
 
   return (
     <div className="fixed inset-0 z-50">
@@ -161,14 +226,15 @@ export function SpaceOverlay({
           bubbleColor={spaceColor}
           bubbleRadius={bubbleRadius}
           outsideColor="#ffffff"
+          currentUserPosition={currentUserPosition}
           speechBubbles={speechBubbles}
+          keyboardEnabled={false}
           onSpeckClick={(userId) => {
             if (!onRequestDm || !currentUserId) return;
             if (userId === currentUserId) return;
             void Promise.resolve(onRequestDm(userId)).catch(() => {});
           }}
           onViewTransform={handleViewTransform}
-          onScreenToWorldReady={onScreenToWorldReady}
         />
       </div>
 
@@ -325,6 +391,7 @@ export function SpaceOverlay({
           presence={presence}
           currentUserId={currentUserId}
           joinedAt={threadJoinedAt}
+          currentUserPosition={currentUserPosition}
           onRequestDm={onRequestDm}
           onClose={onCloseThread}
           onLeave={() => {

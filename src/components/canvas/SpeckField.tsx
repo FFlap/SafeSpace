@@ -18,8 +18,10 @@ interface SpeckFieldProps {
   bubbleColor?: string;
   bubbleRadius?: number;
   outsideColor?: string;
+  currentUserPosition?: { x: number; y: number };
   speechBubbles?: Array<{ userId: Id<"users">; body: string; createdAt: number }>;
   onSpeckClick?: (userId: Id<"users">) => void;
+  keyboardEnabled?: boolean;
   onViewTransform?: (transform: {
     bubbleCenter: { x: number; y: number };
     zoom: number;
@@ -144,8 +146,10 @@ export function SpeckField({
   bubbleColor,
   bubbleRadius = 420,
   outsideColor = "#ffffff",
+  currentUserPosition,
   speechBubbles,
   onSpeckClick,
+  keyboardEnabled = true,
   onViewTransform,
   onScreenToWorldReady,
 }: SpeckFieldProps) {
@@ -214,7 +218,7 @@ export function SpeckField({
       const rect = canvas.getBoundingClientRect();
       zoomBy(delta, rect.width / 2, rect.height / 2, rect.width, rect.height);
     },
-    enabled: true,
+    enabled: keyboardEnabled,
   });
 
   // Render specks on canvas
@@ -309,7 +313,15 @@ export function SpeckField({
     ctx.arc(bubbleCenter.x, bubbleCenter.y, bubbleScreenRadius, 0, Math.PI * 2);
     ctx.clip();
 
-    const centerSpeck = { x: renderWidth / 2, y: renderHeight / 2 };
+    const currentUserScreen =
+      currentUserId && currentUserPosition
+        ? worldToScreen(
+            currentUserPosition.x,
+            currentUserPosition.y,
+            renderWidth,
+            renderHeight
+          )
+        : { x: renderWidth / 2, y: renderHeight / 2 };
 
     // Draw other users
     presence.forEach((p) => {
@@ -346,24 +358,24 @@ export function SpeckField({
       ctx.stroke();
     });
 
-    // Draw current user at center for responsiveness.
+    // Draw current user.
     if (currentUserId) {
       const baseSize = 6;
       const size = baseSize * camera.zoom;
 
       ctx.beginPath();
-      ctx.arc(centerSpeck.x, centerSpeck.y, size, 0, Math.PI * 2);
+      ctx.arc(currentUserScreen.x, currentUserScreen.y, size, 0, Math.PI * 2);
       ctx.fillStyle = "#FAF5F2";
       ctx.fill();
 
       ctx.beginPath();
-      ctx.arc(centerSpeck.x, centerSpeck.y, size, 0, Math.PI * 2);
+      ctx.arc(currentUserScreen.x, currentUserScreen.y, size, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(92, 74, 66, 0.25)";
       ctx.lineWidth = 1;
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.arc(centerSpeck.x, centerSpeck.y, size + 2, 0, Math.PI * 2);
+      ctx.arc(currentUserScreen.x, currentUserScreen.y, size + 2, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(253, 248, 245, 0.5)";
       ctx.lineWidth = 2;
       ctx.stroke();
@@ -376,7 +388,7 @@ export function SpeckField({
         if (now - bubble.createdAt > 2800) continue;
 
         if (currentUserId && bubble.userId === currentUserId) {
-          drawSpeechBubble(ctx, centerSpeck.x, centerSpeck.y, bubble.body);
+          drawSpeechBubble(ctx, currentUserScreen.x, currentUserScreen.y, bubble.body);
           continue;
         }
 
@@ -401,6 +413,7 @@ export function SpeckField({
     bubbleColor,
     bubbleRadius,
     outsideColor,
+    currentUserPosition,
     speechBubbles,
     camera,
     dimensions,

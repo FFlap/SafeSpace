@@ -28,21 +28,16 @@ function FieldPage() {
   const [activeDmConversationId, setActiveDmConversationId] = useState<
     Id<"dmConversations"> | null
   >(null);
-  const screenToWorldRef = useRef<
-    ((x: number, y: number) => { x: number; y: number }) | null
-  >(null);
+  const currentUserPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  const handleScreenToWorldReady = useCallback(
-    (fn: (x: number, y: number) => { x: number; y: number }) => {
-      screenToWorldRef.current = fn;
-    },
+  const handleCurrentUserPositionChange = useCallback((pos: { x: number; y: number }) => {
+    currentUserPositionRef.current = pos;
+  }, []);
+
+  const getCurrentUserPosition = useCallback(
+    () => currentUserPositionRef.current,
     []
   );
-
-  const screenToWorld = useCallback((x: number, y: number) => {
-    const fn = screenToWorldRef.current;
-    return fn ? fn(x, y) : { x, y };
-  }, []);
 
   const { space: selectedSpace } = useSpace(selectedSpaceId);
   const { threads } = useThreads(selectedSpaceId);
@@ -58,7 +53,7 @@ function FieldPage() {
     userId: user?._id ?? null,
     currentThreadId,
     enabled: !!selectedSpaceId && !!user,
-    screenToWorld,
+    getPosition: getCurrentUserPosition,
   });
 
   const handleSpaceClick = useCallback((spaceId: string) => {
@@ -220,7 +215,7 @@ function FieldPage() {
             onJoinThread={handleJoinThread}
             onLeaveThread={handleLeaveThread}
             onRequestDm={handleRequestDm}
-            onScreenToWorldReady={handleScreenToWorldReady}
+            onCurrentUserPositionChange={handleCurrentUserPositionChange}
           />
         )}
 
