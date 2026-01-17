@@ -12,6 +12,8 @@ import type * as clustering_actions from "../clustering/actions.js";
 import type * as config_mutations from "../config/mutations.js";
 import type * as crons from "../crons.js";
 import type * as functions from "../functions.js";
+import type * as messages_mutations from "../messages/mutations.js";
+import type * as messages_queries from "../messages/queries.js";
 import type * as presence_mutations from "../presence/mutations.js";
 import type * as presence_queries from "../presence/queries.js";
 import type * as seed_actions from "../seed/actions.js";
@@ -34,6 +36,8 @@ declare const fullApi: ApiFromModules<{
   "config/mutations": typeof config_mutations;
   crons: typeof crons;
   functions: typeof functions;
+  "messages/mutations": typeof messages_mutations;
+  "messages/queries": typeof messages_queries;
   "presence/mutations": typeof presence_mutations;
   "presence/queries": typeof presence_queries;
   "seed/actions": typeof seed_actions;

@@ -18,56 +18,59 @@ export function usePresence({
   enabled = true,
   screenToWorld,
 }: UsePresenceOptions) {
-  const [position, setPosition] = useState({ x: 100, y: 100 });
-  const positionRef = useRef({ x: 100, y: 100 });
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const positionRef = useRef({ x: 0, y: 0 });
+  const currentThreadIdRef = useRef<Id<"spaceThreads"> | null>(currentThreadId);
+  const screenToWorldRef = useRef<UsePresenceOptions["screenToWorld"]>(screenToWorld);
   const updatePresence = useMutation(api.presence.mutations.updatePresence);
   const leaveSpace = useMutation(api.presence.mutations.leaveSpace);
 
-  // Track mouse movement for position
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      const rawPos = { x: e.clientX, y: e.clientY };
-      const newPos = screenToWorld ? screenToWorld(rawPos.x, rawPos.y) : rawPos;
-      positionRef.current = newPos;
-      setPosition(newPos);
-    },
-    [screenToWorld]
-  );
+  useEffect(() => {
+    currentThreadIdRef.current = currentThreadId;
+  }, [currentThreadId]);
+
+  useEffect(() => {
+    screenToWorldRef.current = screenToWorld;
+  }, [screenToWorld]);
+
+  const getCurrentPosition = useCallback(() => {
+    const fn = screenToWorldRef.current;
+    if (!fn) return positionRef.current;
+    return fn(window.innerWidth / 2, window.innerHeight / 2);
+  }, []);
 
   // Send presence updates
   useEffect(() => {
     if (!enabled || !spaceId || !userId) return;
 
-    const interval = setInterval(() => {
+    const tick = () => {
+      const newPos = getCurrentPosition();
+      positionRef.current = newPos;
+      setPosition(newPos);
+
       updatePresence({
         spaceId,
         userId,
         position: positionRef.current,
-        currentThreadId: currentThreadId ?? undefined,
+        currentThreadId: currentThreadIdRef.current ?? undefined,
       });
-    }, 1000);
+    };
 
-    // Initial update
-    updatePresence({
-      spaceId,
-      userId,
-      position: positionRef.current,
-      currentThreadId: currentThreadId ?? undefined,
-    });
+    tick();
+    const interval = setInterval(tick, 250);
 
     return () => {
       clearInterval(interval);
       leaveSpace({ spaceId, userId });
     };
-  }, [enabled, spaceId, userId, currentThreadId, updatePresence, leaveSpace]);
-
-  // Track mouse movement
-  useEffect(() => {
-    if (!enabled) return;
-
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, [enabled, handleMouseMove]);
+  }, [
+    enabled,
+    spaceId,
+    userId,
+    updatePresence,
+    leaveSpace,
+    getCurrentPosition,
+  ]);
 
   return { position };
 }

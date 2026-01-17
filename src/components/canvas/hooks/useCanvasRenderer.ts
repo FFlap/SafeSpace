@@ -89,41 +89,9 @@ export function useCanvasRenderer({
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Draw background gradient
-    const bgGradient = ctx.createRadialGradient(
-      centerX,
-      centerY,
-      0,
-      centerX,
-      centerY,
-      Math.max(width, height)
-    );
-    bgGradient.addColorStop(0, "#1e293b");
-    bgGradient.addColorStop(1, "#0f172a");
-    ctx.fillStyle = bgGradient;
+    // Draw background (gray, no grid)
+    ctx.fillStyle = "#d1d5db";
     ctx.fillRect(0, 0, width, height);
-
-    // Draw subtle grid
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
-    ctx.lineWidth = 1;
-
-    const gridSize = 100 * camera.zoom;
-    const offsetX = ((-camera.x * camera.zoom + centerX) % gridSize) - gridSize;
-    const offsetY = ((-camera.y * camera.zoom + centerY) % gridSize) - gridSize;
-
-    for (let x = offsetX; x < width + gridSize; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-      ctx.stroke();
-    }
-
-    for (let y = offsetY; y < height + gridSize; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.stroke();
-    }
 
     // Draw bubbles
     for (const space of spaces) {

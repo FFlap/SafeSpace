@@ -57,6 +57,74 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_thread_user", ["threadId", "userId"]),
 
+  // Anonymous messages within threads
+  threadMessages: defineTable({
+    threadId: v.id("spaceThreads"),
+    userId: v.id("users"),
+    body: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_thread", ["threadId"])
+    .index("by_thread_createdAt", ["threadId", "createdAt"])
+    .index("by_user", ["userId"]),
+
+  // Per-thread name sharing consent (anonymous by default)
+  threadNameConsents: defineTable({
+    threadId: v.id("spaceThreads"),
+    userId: v.id("users"),
+    shareName: v.boolean(),
+    updatedAt: v.number(),
+  })
+    .index("by_thread", ["threadId"])
+    .index("by_thread_user", ["threadId", "userId"])
+    .index("by_user", ["userId"]),
+
+  // 1-on-1 DM requests (must be accepted before messaging)
+  dmRequests: defineTable({
+    fromUserId: v.id("users"),
+    toUserId: v.id("users"),
+    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("declined")),
+    createdAt: v.number(),
+    respondedAt: v.optional(v.number()),
+    conversationId: v.optional(v.id("dmConversations")),
+  })
+    .index("by_to_status", ["toUserId", "status"])
+    .index("by_from_status", ["fromUserId", "status"])
+    .index("by_from_to", ["fromUserId", "toUserId"]),
+
+  // 1-on-1 DM conversations (created when a request is accepted)
+  dmConversations: defineTable({
+    userA: v.id("users"),
+    userB: v.id("users"),
+    createdAt: v.number(),
+    acceptedAt: v.number(),
+  })
+    .index("by_userA", ["userA"])
+    .index("by_userB", ["userB"])
+    .index("by_userA_userB", ["userA", "userB"]),
+
+  // Anonymous messages within 1-on-1 DM conversations
+  dmMessages: defineTable({
+    conversationId: v.id("dmConversations"),
+    senderId: v.id("users"),
+    body: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_conversation", ["conversationId"])
+    .index("by_conversation_createdAt", ["conversationId", "createdAt"])
+    .index("by_sender", ["senderId"]),
+
+  // Per-DM name sharing consent (anonymous by default)
+  dmNameConsents: defineTable({
+    conversationId: v.id("dmConversations"),
+    userId: v.id("users"),
+    shareName: v.boolean(),
+    updatedAt: v.number(),
+  })
+    .index("by_conversation", ["conversationId"])
+    .index("by_conversation_user", ["conversationId", "userId"])
+    .index("by_user", ["userId"]),
+
   // Real-time presence in spaces
   spacePresence: defineTable({
     spaceId: v.id("spaces"),

@@ -13,17 +13,12 @@ export function Speck({
 }: SpeckProps) {
   const size = isCurrentUser ? 12 : 8;
 
-  let bgColor = "bg-gray-400"; // Default: users in other threads
-  if (isCurrentUser) {
-    bgColor = "bg-blue-500";
-  } else if (isInSameThread) {
-    bgColor = "bg-white";
-  }
+  const bgColor = isCurrentUser ? "bg-white" : isInSameThread ? "bg-white" : "bg-gray-400";
 
   return (
     <div
       className={`absolute rounded-full ${bgColor} ${
-        isCurrentUser ? "ring-2 ring-blue-300 ring-opacity-50" : ""
+        isCurrentUser ? "ring-2 ring-white ring-opacity-50" : ""
       }`}
       style={{
         left: x,

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/clerk-react";
 import { BubbleField } from "@/components/canvas/BubbleField";
@@ -20,9 +20,21 @@ function FieldPage() {
 
   const [selectedSpaceId, setSelectedSpaceId] = useState<Id<"spaces"> | null>(null);
   const [currentThreadId, setCurrentThreadId] = useState<Id<"spaceThreads"> | null>(null);
-  const [screenToWorld, setScreenToWorld] = useState<
+  const screenToWorldRef = useRef<
     ((x: number, y: number) => { x: number; y: number }) | null
   >(null);
+
+  const handleScreenToWorldReady = useCallback(
+    (fn: (x: number, y: number) => { x: number; y: number }) => {
+      screenToWorldRef.current = fn;
+    },
+    []
+  );
+
+  const screenToWorld = useCallback((x: number, y: number) => {
+    const fn = screenToWorldRef.current;
+    return fn ? fn(x, y) : { x, y };
+  }, []);
 
   const { space: selectedSpace } = useSpace(selectedSpaceId);
   const { threads } = useThreads(selectedSpaceId);
@@ -36,7 +48,7 @@ function FieldPage() {
     userId: user?._id ?? null,
     currentThreadId,
     enabled: !!selectedSpaceId && !!user,
-    screenToWorld: screenToWorld ?? undefined,
+    screenToWorld,
   });
 
   const handleSpaceClick = useCallback((spaceId: string) => {
@@ -68,12 +80,12 @@ function FieldPage() {
     async (threadId: Id<"spaceThreads">) => {
       if (!user) return;
 
+      setCurrentThreadId(threadId);
       await joinThread({
         threadId,
         userId: user._id,
       });
 
-      setCurrentThreadId(threadId);
     },
     [user, joinThread]
   );
@@ -82,17 +94,21 @@ function FieldPage() {
     async (threadId: Id<"spaceThreads">) => {
       if (!user) return;
 
+      if (currentThreadId === threadId) {
+        setCurrentThreadId(null);
+      }
+
       await leaveThread({
         threadId,
         userId: user._id,
       });
-
-      if (currentThreadId === threadId) {
-        setCurrentThreadId(null);
-      }
     },
     [user, leaveThread, currentThreadId]
   );
+
+  const handleCloseThread = useCallback(() => {
+    setCurrentThreadId(null);
+  }, []);
 
   // Loading state
   if (spacesLoading) {
@@ -121,7 +137,7 @@ function FieldPage() {
 
       <SignedIn>
         {/* Header */}
-        <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between bg-gradient-to-b from-slate-900/80 to-transparent pointer-events-none">
+        <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between bg-slate-900 border-b border-slate-800 pointer-events-none">
           <button
             onClick={() => navigate({ to: "/" })}
             className="text-xl font-bold text-white hover:text-indigo-400 transition-colors pointer-events-auto"
@@ -152,10 +168,11 @@ function FieldPage() {
             currentThreadId={currentThreadId}
             memberThreadIds={memberThreadIds}
             onClose={handleCloseOverlay}
+            onCloseThread={handleCloseThread}
             onCreateThread={handleCreateThread}
             onJoinThread={handleJoinThread}
             onLeaveThread={handleLeaveThread}
-            onScreenToWorldReady={setScreenToWorld}
+            onScreenToWorldReady={handleScreenToWorldReady}
           />
         )}
 

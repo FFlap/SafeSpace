@@ -15,15 +15,37 @@ interface SpeckFieldProps {
   presence: PresenceUser[];
   currentUserId: Id<"users"> | null;
   currentThreadId: Id<"spaceThreads"> | null;
+  bubbleColor?: string;
+  bubbleRadius?: number;
+  outsideColor?: string;
+  onViewTransform?: (transform: {
+    bubbleCenter: { x: number; y: number };
+    zoom: number;
+  }) => void;
   onScreenToWorldReady?: (
     screenToWorld: (x: number, y: number) => { x: number; y: number }
   ) => void;
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : null;
 }
 
 export function SpeckField({
   presence,
   currentUserId,
   currentThreadId,
+  bubbleColor,
+  bubbleRadius = 420,
+  outsideColor = "#d1d5db",
+  onViewTransform,
   onScreenToWorldReady,
 }: SpeckFieldProps) {
   const { camera, pan, zoomBy, screenToWorld, worldToScreen } = useCamera();
@@ -68,6 +90,18 @@ export function SpeckField({
     onScreenToWorldReady(boundScreenToWorld);
   }, [onScreenToWorldReady, screenToWorld, dimensions]);
 
+  // Provide view transform (bubble center + zoom) to parent for aligning DOM overlays.
+  useEffect(() => {
+    if (!onViewTransform || dimensions.width === 0 || dimensions.height === 0) return;
+
+    const bubbleCenter = {
+      x: (0 - camera.x) * camera.zoom + dimensions.width / 2,
+      y: (0 - camera.y) * camera.zoom + dimensions.height / 2,
+    };
+
+    onViewTransform({ bubbleCenter, zoom: camera.zoom });
+  }, [onViewTransform, camera.x, camera.y, camera.zoom, dimensions.width, dimensions.height]);
+
   // Keyboard navigation
   useKeyboardNav({
     onPan: pan,
@@ -94,12 +128,64 @@ export function SpeckField({
     const renderWidth = dimensions.width;
     const renderHeight = dimensions.height;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, renderWidth, renderHeight);
+    // Background (outside bubble)
+    ctx.fillStyle = outsideColor;
+    ctx.fillRect(0, 0, renderWidth, renderHeight);
 
-    // Draw each speck
+    const bubbleCenter = worldToScreen(0, 0, renderWidth, renderHeight);
+    const bubbleScreenRadius = bubbleRadius * camera.zoom;
+
+    // Bubble background
+    if (bubbleColor) {
+      const rgb = hexToRgb(bubbleColor);
+      if (rgb) {
+        const gradient = ctx.createRadialGradient(
+          bubbleCenter.x - bubbleScreenRadius * 0.3,
+          bubbleCenter.y - bubbleScreenRadius * 0.3,
+          0,
+          bubbleCenter.x,
+          bubbleCenter.y,
+          bubbleScreenRadius
+        );
+        gradient.addColorStop(
+          0,
+          `rgba(${Math.min(rgb.r + 60, 255)}, ${Math.min(rgb.g + 60, 255)}, ${Math.min(rgb.b + 60, 255)}, 0.95)`
+        );
+        gradient.addColorStop(0.7, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.9)`);
+        gradient.addColorStop(
+          1,
+          `rgba(${Math.max(rgb.r - 30, 0)}, ${Math.max(rgb.g - 30, 0)}, ${Math.max(rgb.b - 30, 0)}, 0.85)`
+        );
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(bubbleCenter.x, bubbleCenter.y, bubbleScreenRadius, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, renderWidth, renderHeight);
+        ctx.restore();
+      }
+
+      // Bubble boundary
+      ctx.beginPath();
+      ctx.arc(bubbleCenter.x, bubbleCenter.y, bubbleScreenRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Clip specks to bubble so the inside stays circular.
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(bubbleCenter.x, bubbleCenter.y, bubbleScreenRadius, 0, Math.PI * 2);
+    ctx.clip();
+
+    const centerSpeck = { x: renderWidth / 2, y: renderHeight / 2 };
+
+    // Draw other users
     presence.forEach((p) => {
-      const isCurrentUser = currentUserId === p.userId;
+      if (currentUserId === p.userId) return;
+
       const isInSameThread =
         currentThreadId !== null && p.currentThreadId === currentThreadId;
 
@@ -112,32 +198,47 @@ export function SpeckField({
       );
 
       // Determine size and color
-      const baseSize = isCurrentUser ? 6 : 4;
+      const baseSize = 4;
       const size = baseSize * camera.zoom;
 
-      let fillColor = "#9ca3af"; // gray-400 - users in other threads
-      if (isCurrentUser) {
-        fillColor = "#3b82f6"; // blue-500
-      } else if (isInSameThread) {
-        fillColor = "#ffffff"; // white
-      }
+      const fillColor = isInSameThread ? "#ffffff" : "#9ca3af";
 
       // Draw speck
       ctx.beginPath();
       ctx.arc(screenPos.x, screenPos.y, size, 0, Math.PI * 2);
       ctx.fillStyle = fillColor;
       ctx.fill();
-
-      // Draw ring for current user
-      if (isCurrentUser) {
-        ctx.beginPath();
-        ctx.arc(screenPos.x, screenPos.y, size + 2, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(147, 197, 253, 0.5)"; // blue-300 with opacity
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
     });
-  }, [presence, currentUserId, currentThreadId, camera, dimensions, worldToScreen]);
+
+    // Draw current user at center for responsiveness.
+    if (currentUserId) {
+      const baseSize = 6;
+      const size = baseSize * camera.zoom;
+
+      ctx.beginPath();
+      ctx.arc(centerSpeck.x, centerSpeck.y, size, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(centerSpeck.x, centerSpeck.y, size + 2, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }, [
+    presence,
+    currentUserId,
+    currentThreadId,
+    bubbleColor,
+    bubbleRadius,
+    outsideColor,
+    camera,
+    dimensions,
+    worldToScreen,
+  ]);
 
   // Mouse drag handling
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
