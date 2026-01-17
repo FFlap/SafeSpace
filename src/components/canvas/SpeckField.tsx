@@ -18,6 +18,8 @@ interface SpeckFieldProps {
   bubbleColor?: string;
   bubbleRadius?: number;
   outsideColor?: string;
+  speechBubbles?: Array<{ userId: Id<"users">; body: string; createdAt: number }>;
+  onSpeckClick?: (userId: Id<"users">) => void;
   onViewTransform?: (transform: {
     bubbleCenter: { x: number; y: number };
     zoom: number;
@@ -38,6 +40,75 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
     : null;
 }
 
+function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  const t = text.trim().replace(/\s+/g, " ");
+  if (!t) return "";
+  if (ctx.measureText(t).width <= maxWidth) return t;
+
+  let lo = 0;
+  let hi = t.length;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const candidate = `${t.slice(0, mid)}…`;
+    if (ctx.measureText(candidate).width <= maxWidth) lo = mid + 1;
+    else hi = mid;
+  }
+  return `${t.slice(0, Math.max(0, lo - 1))}…`;
+}
+
+function drawSpeechBubble(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  text: string
+): void {
+  const maxTextWidth = 220;
+  const t = truncateText(ctx, text, maxTextWidth);
+  if (!t) return;
+
+  const paddingX = 8;
+  const textWidth = ctx.measureText(t).width;
+  const bubbleWidth = textWidth + paddingX * 2;
+  const bubbleHeight = 22;
+  const radius = 10;
+  const pointerH = 6;
+  const pointerW = 10;
+
+  const bx = x - bubbleWidth / 2;
+  const by = y - bubbleHeight - pointerH - 10;
+
+  ctx.beginPath();
+  ctx.moveTo(bx + radius, by);
+  ctx.lineTo(bx + bubbleWidth - radius, by);
+  ctx.quadraticCurveTo(bx + bubbleWidth, by, bx + bubbleWidth, by + radius);
+  ctx.lineTo(bx + bubbleWidth, by + bubbleHeight - radius);
+  ctx.quadraticCurveTo(
+    bx + bubbleWidth,
+    by + bubbleHeight,
+    bx + bubbleWidth - radius,
+    by + bubbleHeight
+  );
+  ctx.lineTo(x + pointerW / 2, by + bubbleHeight);
+  ctx.lineTo(x, by + bubbleHeight + pointerH);
+  ctx.lineTo(x - pointerW / 2, by + bubbleHeight);
+  ctx.lineTo(bx + radius, by + bubbleHeight);
+  ctx.quadraticCurveTo(bx, by + bubbleHeight, bx, by + bubbleHeight - radius);
+  ctx.lineTo(bx, by + radius);
+  ctx.quadraticCurveTo(bx, by, bx + radius, by);
+  ctx.closePath();
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(t, x, by + bubbleHeight / 2 + 1);
+}
+
 export function SpeckField({
   presence,
   currentUserId,
@@ -45,6 +116,8 @@ export function SpeckField({
   bubbleColor,
   bubbleRadius = 420,
   outsideColor = "#d1d5db",
+  speechBubbles,
+  onSpeckClick,
   onViewTransform,
   onScreenToWorldReady,
 }: SpeckFieldProps) {
@@ -53,6 +126,8 @@ export function SpeckField({
 
   useDisableBrowserZoom(true);
   const lastMousePos = useRef({ x: 0, y: 0 });
+  const mouseDownPos = useRef({ x: 0, y: 0 });
+  const didDrag = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
@@ -227,6 +302,30 @@ export function SpeckField({
       ctx.stroke();
     }
 
+    const now = Date.now();
+    if (speechBubbles?.length) {
+      ctx.font = `500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      for (const bubble of speechBubbles) {
+        if (now - bubble.createdAt > 2800) continue;
+
+        if (currentUserId && bubble.userId === currentUserId) {
+          drawSpeechBubble(ctx, centerSpeck.x, centerSpeck.y, bubble.body);
+          continue;
+        }
+
+        const presenceItem = presence.find((p) => p.userId === bubble.userId);
+        if (!presenceItem) continue;
+
+        const screenPos = worldToScreen(
+          presenceItem.position.x,
+          presenceItem.position.y,
+          renderWidth,
+          renderHeight
+        );
+        drawSpeechBubble(ctx, screenPos.x, screenPos.y, bubble.body);
+      }
+    }
+
     ctx.restore();
   }, [
     presence,
@@ -235,6 +334,7 @@ export function SpeckField({
     bubbleColor,
     bubbleRadius,
     outsideColor,
+    speechBubbles,
     camera,
     dimensions,
     worldToScreen,
@@ -244,6 +344,8 @@ export function SpeckField({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsDragging(true);
     lastMousePos.current = { x: e.clientX, y: e.clientY };
+    mouseDownPos.current = { x: e.clientX, y: e.clientY };
+    didDrag.current = false;
   }, []);
 
   const handleMouseMove = useCallback(
@@ -251,6 +353,12 @@ export function SpeckField({
       if (isDragging) {
         const dx = e.clientX - lastMousePos.current.x;
         const dy = e.clientY - lastMousePos.current.y;
+        if (
+          Math.abs(e.clientX - mouseDownPos.current.x) > 3 ||
+          Math.abs(e.clientY - mouseDownPos.current.y) > 3
+        ) {
+          didDrag.current = true;
+        }
         pan(-dx, -dy);
         lastMousePos.current = { x: e.clientX, y: e.clientY };
       }
@@ -265,6 +373,35 @@ export function SpeckField({
   const handleMouseLeave = useCallback(() => {
     setIsDragging(false);
   }, []);
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!onSpeckClick || didDrag.current) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      let hit: { userId: Id<"users">; dist: number } | null = null;
+      for (const p of presence) {
+        if (currentUserId && p.userId === currentUserId) continue;
+        const screenPos = worldToScreen(p.position.x, p.position.y, rect.width, rect.height);
+        const dx = x - screenPos.x;
+        const dy = y - screenPos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        const radius = Math.max(10, 10 * camera.zoom);
+        if (dist <= radius && (!hit || dist < hit.dist)) {
+          hit = { userId: p.userId, dist };
+        }
+      }
+
+      if (hit) onSpeckClick(hit.userId);
+    },
+    [onSpeckClick, presence, currentUserId, worldToScreen, camera.zoom]
+  );
 
   // Wheel zoom
   const handleWheel = useCallback(
@@ -290,6 +427,7 @@ export function SpeckField({
       style={{
         cursor: isDragging ? "grabbing" : "grab",
       }}
+      onClick={handleClick}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}

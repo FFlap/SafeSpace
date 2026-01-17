@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SpeckField } from "@/components/canvas/SpeckField";
@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ThreadOverlay } from "@/components/threads/ThreadOverlay";
+import { useThreadMessages } from "@/hooks/useThreadMessages";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 interface PresenceUser {
@@ -40,6 +41,7 @@ interface SpaceOverlayProps {
   onCreateThread: (name: string) => void;
   onJoinThread: (threadId: Id<"spaceThreads">) => void;
   onLeaveThread: (threadId: Id<"spaceThreads">) => void;
+  onRequestDm?: (userId: Id<"users">) => void;
   onScreenToWorldReady?: (
     screenToWorld: (x: number, y: number) => { x: number; y: number }
   ) => void;
@@ -58,17 +60,46 @@ export function SpaceOverlay({
   onCreateThread,
   onJoinThread,
   onLeaveThread,
+  onRequestDm,
   onScreenToWorldReady,
 }: SpaceOverlayProps) {
   const bubbleRadius = 260 + Math.sqrt(Math.max(1, presence.length)) * 120;
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newThreadName, setNewThreadName] = useState("");
+  const [threadJoinedAt, setThreadJoinedAt] = useState<number>(Date.now());
 
   const currentThread = useMemo(
     () => threads.find((t) => t._id === currentThreadId) ?? null,
     [threads, currentThreadId]
   );
+
+  useEffect(() => {
+    if (currentThreadId) setThreadJoinedAt(Date.now());
+  }, [currentThreadId]);
+
+  const { messages: threadMessages } = useThreadMessages(currentThreadId, {
+    since: threadJoinedAt,
+    limit: 120,
+  });
+
+  const speechBubbles = useMemo(() => {
+    if (!currentThreadId) return undefined;
+    const activeIds = new Set<string>();
+    for (const p of presence) {
+      if (p.currentThreadId === currentThreadId) activeIds.add(p.userId);
+    }
+
+    const byUser = new Map<string, { userId: Id<"users">; body: string; createdAt: number }>();
+    for (let i = threadMessages.length - 1; i >= 0; i--) {
+      const m = threadMessages[i];
+      if (!activeIds.has(m.userId)) continue;
+      if (byUser.has(m.userId)) continue;
+      byUser.set(m.userId, { userId: m.userId, body: m.body, createdAt: m.createdAt });
+    }
+
+    return [...byUser.values()];
+  }, [currentThreadId, presence, threadMessages]);
 
   const threadAnchorRef = useRef<HTMLDivElement>(null);
   const handleViewTransform = useCallback(
@@ -95,6 +126,12 @@ export function SpaceOverlay({
           bubbleColor={spaceColor}
           bubbleRadius={bubbleRadius}
           outsideColor="#d1d5db"
+          speechBubbles={speechBubbles}
+          onSpeckClick={(userId) => {
+            if (!onRequestDm || !currentUserId) return;
+            if (userId === currentUserId) return;
+            void Promise.resolve(onRequestDm(userId)).catch(() => {});
+          }}
           onViewTransform={handleViewTransform}
           onScreenToWorldReady={onScreenToWorldReady}
         />
@@ -151,9 +188,9 @@ export function SpaceOverlay({
       </div>
 
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 p-4 pointer-events-none">
+      <div className="absolute top-16 left-0 right-0 z-10 p-4 pointer-events-none">
         <div className="flex items-center justify-between pointer-events-auto">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 rounded-full bg-slate-950/80 backdrop-blur-md border border-white/10 px-4 py-2 shadow-lg">
             <div
               className="w-3.5 h-3.5 rounded-full ring-2 ring-white/20"
               style={{ backgroundColor: spaceColor }}
@@ -167,7 +204,7 @@ export function SpaceOverlay({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-slate-200 hover:text-white hover:bg-white/10"
+                  className="bg-slate-950/80 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-slate-950/90 shadow-sm"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   New thread
@@ -220,7 +257,7 @@ export function SpaceOverlay({
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="text-slate-200 hover:text-white hover:bg-white/10"
+              className="bg-slate-950/80 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-slate-950/90 shadow-sm"
             >
               <X className="w-5 h-5 mr-1" />
               Exit
@@ -252,6 +289,8 @@ export function SpaceOverlay({
           threadName={currentThread?.name ?? "Thread"}
           presence={presence}
           currentUserId={currentUserId}
+          joinedAt={threadJoinedAt}
+          onRequestDm={onRequestDm}
           onClose={onCloseThread}
           onLeave={() => {
             onLeaveThread(currentThreadId);

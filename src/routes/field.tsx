@@ -1,12 +1,16 @@
 import { useState, useCallback, useRef } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/clerk-react";
+import { Inbox } from "lucide-react";
 import { BubbleField } from "@/components/canvas/BubbleField";
 import { SpaceOverlay } from "@/components/space/SpaceOverlay";
+import { InboxSidebar } from "@/components/dms/InboxSidebar";
+import { Button } from "@/components/ui/button";
 import { useSpaces, useSpace } from "@/hooks/useSpaces";
 import { useThreads, useMyThreadMemberships, useThreadMutations } from "@/hooks/useThreads";
 import { usePresence, useSpacePresence } from "@/hooks/usePresence";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useDmMutations, useIncomingDmRequests } from "@/hooks/useDirectMessages";
 import type { Id } from "../../convex/_generated/dataModel";
 
 export const Route = createFileRoute("/field")({
@@ -20,6 +24,10 @@ function FieldPage() {
 
   const [selectedSpaceId, setSelectedSpaceId] = useState<Id<"spaces"> | null>(null);
   const [currentThreadId, setCurrentThreadId] = useState<Id<"spaceThreads"> | null>(null);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [activeDmConversationId, setActiveDmConversationId] = useState<
+    Id<"dmConversations"> | null
+  >(null);
   const screenToWorldRef = useRef<
     ((x: number, y: number) => { x: number; y: number }) | null
   >(null);
@@ -41,6 +49,8 @@ function FieldPage() {
   const { presence } = useSpacePresence(selectedSpaceId);
   const { memberThreadIds } = useMyThreadMemberships(user?._id ?? null);
   const { createThread, joinThread, leaveThread } = useThreadMutations();
+  const { requestDm } = useDmMutations();
+  const { requests: incomingDmRequests } = useIncomingDmRequests(user?._id ?? null);
 
   // Presence tracking
   usePresence({
@@ -80,12 +90,11 @@ function FieldPage() {
     async (threadId: Id<"spaceThreads">) => {
       if (!user) return;
 
-      setCurrentThreadId(threadId);
       await joinThread({
         threadId,
         userId: user._id,
       });
-
+      setCurrentThreadId(threadId);
     },
     [user, joinThread]
   );
@@ -109,6 +118,28 @@ function FieldPage() {
   const handleCloseThread = useCallback(() => {
     setCurrentThreadId(null);
   }, []);
+
+  const handleCloseInbox = useCallback(() => setInboxOpen(false), []);
+  const handleBackToInbox = useCallback(() => setActiveDmConversationId(null), []);
+
+  const handleOpenDmConversation = useCallback((conversationId: Id<"dmConversations">) => {
+    setActiveDmConversationId(conversationId);
+    setInboxOpen(true);
+  }, []);
+
+  const handleRequestDm = useCallback(
+    async (otherUserId: Id<"users">) => {
+      if (!user?._id) return;
+      const res = (await requestDm({
+        fromUserId: user._id,
+        toUserId: otherUserId,
+      })) as { conversationId: Id<"dmConversations"> | null; requestId: string | null };
+
+      setInboxOpen(true);
+      setActiveDmConversationId(res.conversationId ?? null);
+    },
+    [user?._id, requestDm]
+  );
 
   // Loading state
   if (spacesLoading) {
@@ -137,15 +168,31 @@ function FieldPage() {
 
       <SignedIn>
         {/* Header */}
-        <div className="absolute top-0 left-0 right-0 z-10 p-4 flex items-center justify-between bg-slate-900 border-b border-slate-800 pointer-events-none">
+        <div className="fixed top-0 left-0 right-0 z-[200] h-16 px-4 flex items-center justify-between bg-slate-950 border-b border-slate-800/80 pointer-events-none">
           <button
             onClick={() => navigate({ to: "/" })}
             className="text-xl font-bold text-white hover:text-indigo-400 transition-colors pointer-events-auto"
           >
             HackTheBias
           </button>
-          <div className="text-slate-400 text-sm pointer-events-auto">
+          <div className="text-slate-400 text-sm pointer-events-auto hidden md:block">
             Use WASD or arrows to pan, +/- to zoom
+          </div>
+          <div className="pointer-events-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setInboxOpen((v) => !v)}
+              className="text-white/80 hover:text-white hover:bg-white/10 relative"
+            >
+              <Inbox className="w-4 h-4 mr-2" />
+              Inbox
+              {incomingDmRequests.length > 0 && (
+                <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">
+                  {incomingDmRequests.length}
+                </span>
+              )}
+            </Button>
           </div>
         </div>
 
@@ -172,7 +219,19 @@ function FieldPage() {
             onCreateThread={handleCreateThread}
             onJoinThread={handleJoinThread}
             onLeaveThread={handleLeaveThread}
+            onRequestDm={handleRequestDm}
             onScreenToWorldReady={handleScreenToWorldReady}
+          />
+        )}
+
+        {user?._id && (
+          <InboxSidebar
+            open={inboxOpen}
+            currentUserId={user._id}
+            activeConversationId={activeDmConversationId}
+            onClose={handleCloseInbox}
+            onBackToInbox={handleBackToInbox}
+            onSelectConversation={handleOpenDmConversation}
           />
         )}
 

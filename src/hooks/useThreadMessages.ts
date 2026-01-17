@@ -8,12 +8,18 @@ export interface ThreadMessage {
   userId: Id<"users">;
   body: string;
   createdAt: number;
+  displayName?: string | null;
 }
 
-export function useThreadMessages(threadId: Id<"spaceThreads"> | null) {
+export function useThreadMessages(
+  threadId: Id<"spaceThreads"> | null,
+  options?: { since?: number; limit?: number }
+) {
   const messages = useQuery(
     anyApi.messages.queries.listThreadMessages,
-    threadId ? { threadId } : "skip"
+    threadId
+      ? { threadId, since: options?.since, limit: options?.limit }
+      : "skip"
   ) as ThreadMessage[] | undefined;
 
   return {
@@ -34,8 +40,22 @@ export function useThreadChatters(threadId: Id<"spaceThreads"> | null) {
   };
 }
 
-export function useThreadMessageMutations() {
-  const sendThreadMessage = useMutation(anyApi.messages.mutations.sendThreadMessage);
-  return { sendThreadMessage };
+export function useThreadNameConsent(
+  threadId: Id<"spaceThreads"> | null,
+  userId: Id<"users"> | null
+) {
+  const shareName = useQuery(
+    anyApi.messages.queries.getThreadNameConsent,
+    threadId && userId ? { threadId, userId } : "skip"
+  ) as boolean | undefined;
+
+  return { shareName: shareName ?? false, isLoading: shareName === undefined };
 }
 
+export function useThreadMessageMutations() {
+  const sendThreadMessage = useMutation(anyApi.messages.mutations.sendThreadMessage);
+  const setThreadNameConsent = useMutation(
+    anyApi.messages.mutations.setThreadNameConsent
+  );
+  return { sendThreadMessage, setThreadNameConsent };
+}

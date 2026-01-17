@@ -11,6 +11,8 @@
 import type * as clustering_actions from "../clustering/actions.js";
 import type * as config_mutations from "../config/mutations.js";
 import type * as crons from "../crons.js";
+import type * as dms_mutations from "../dms/mutations.js";
+import type * as dms_queries from "../dms/queries.js";
 import type * as functions from "../functions.js";
 import type * as messages_mutations from "../messages/mutations.js";
 import type * as messages_queries from "../messages/queries.js";
@@ -35,6 +37,8 @@ declare const fullApi: ApiFromModules<{
   "clustering/actions": typeof clustering_actions;
   "config/mutations": typeof config_mutations;
   crons: typeof crons;
+  "dms/mutations": typeof dms_mutations;
+  "dms/queries": typeof dms_queries;
   functions: typeof functions;
   "messages/mutations": typeof messages_mutations;
   "messages/queries": typeof messages_queries;
