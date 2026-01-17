@@ -196,23 +196,27 @@ export function useCanvasRenderer({
       ctx.stroke();
 
       // Draw name label
-      const fontSize = Math.max(12, 14 * camera.zoom);
-      ctx.font = `600 ${fontSize}px "Quicksand", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      ctx.save();
-      ctx.shadowColor = "rgba(253, 248, 245, 0.9)";
-      ctx.shadowBlur = 6;
-      ctx.fillStyle = "rgba(92, 74, 66, 0.9)";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(space.name, sx, sy);
-      ctx.restore();
+      const fontSize = 14 * camera.zoom;
+      
+      // Skip text rendering if too small to read/visible
+      if (fontSize > 4) {
+        ctx.font = `600 ${fontSize}px "Quicksand", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        ctx.save();
+        ctx.shadowColor = "rgba(253, 248, 245, 0.9)";
+        ctx.shadowBlur = 6;
+        ctx.fillStyle = "rgba(92, 74, 66, 0.9)";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(space.name, sx, sy);
+        ctx.restore();
 
-      // Draw user count if > 0
-      if (space.activeUserCount > 0) {
-        const countFontSize = Math.max(10, 11 * camera.zoom);
-        ctx.font = `500 ${countFontSize}px "Source Sans 3", -apple-system, BlinkMacSystemFont, sans-serif`;
-        ctx.fillStyle = "rgba(92, 74, 66, 0.6)";
-        ctx.fillText(`${space.activeUserCount} active`, sx, sy + fontSize);
+        // Draw user count if > 0
+        if (space.activeUserCount > 0) {
+          const countFontSize = 11 * camera.zoom;
+          ctx.font = `500 ${countFontSize}px "Source Sans 3", -apple-system, BlinkMacSystemFont, sans-serif`;
+          ctx.fillStyle = "rgba(92, 74, 66, 0.6)";
+          ctx.fillText(`${space.activeUserCount} active`, sx, sy + fontSize);
+        }
       }
     }
   }, [camera, spaces, getBubbleRadius]);
