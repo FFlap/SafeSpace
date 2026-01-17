@@ -63,6 +63,7 @@ export default defineSchema({
     userId: v.id("users"),
     body: v.string(),
     createdAt: v.number(),
+    isSystemMessage: v.optional(v.boolean()),
   })
     .index("by_thread", ["threadId"])
     .index("by_thread_createdAt", ["threadId", "createdAt"])
@@ -109,6 +110,7 @@ export default defineSchema({
     senderId: v.id("users"),
     body: v.string(),
     createdAt: v.number(),
+    isSystemMessage: v.optional(v.boolean()),
   })
     .index("by_conversation", ["conversationId"])
     .index("by_conversation_createdAt", ["conversationId", "createdAt"])
