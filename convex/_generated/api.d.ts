@@ -14,6 +14,7 @@ import type * as crons from "../crons.js";
 import type * as dms_mutations from "../dms/mutations.js";
 import type * as dms_queries from "../dms/queries.js";
 import type * as functions from "../functions.js";
+import type * as maintenance from "../maintenance.js";
 import type * as messages_mutations from "../messages/mutations.js";
 import type * as messages_queries from "../messages/queries.js";
 import type * as presence_mutations from "../presence/mutations.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   "dms/mutations": typeof dms_mutations;
   "dms/queries": typeof dms_queries;
   functions: typeof functions;
+  maintenance: typeof maintenance;
   "messages/mutations": typeof messages_mutations;
   "messages/queries": typeof messages_queries;
   "presence/mutations": typeof presence_mutations;
