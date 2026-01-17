@@ -17,9 +17,8 @@ export function Speck({
 
   return (
     <div
-      className={`absolute rounded-full ${bgColor} ${
-        isCurrentUser ? "ring-2 ring-white ring-opacity-50" : ""
-      }`}
+      className={`absolute rounded-full ${bgColor} shadow-[0_0_8px_rgba(255,255,255,0.4)] transition-opacity duration-1000 ${isCurrentUser ? "ring-2 ring-white ring-opacity-50" : ""
+        }`}
       style={{
         left: x,
         top: y,

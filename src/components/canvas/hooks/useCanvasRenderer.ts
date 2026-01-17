@@ -9,6 +9,8 @@ interface PhysicsNode {
   targetX: number;
   targetY: number;
   radius: number;
+  phaseX: number; // Random phase for drift X
+  phaseY: number; // Random phase for drift Y
 }
 
 export interface SpaceData {
@@ -104,6 +106,8 @@ export function useCanvasRenderer({
           targetX: space.position.x,
           targetY: space.position.y,
           radius,
+          phaseX: Math.random() * Math.PI * 2,
+          phaseY: Math.random() * Math.PI * 2,
         });
       } else {
         const node = currentState.get(space._id)!;
@@ -120,10 +124,15 @@ export function useCanvasRenderer({
     const padding = 20;
 
     // Constants
-    const attractionStrength = 0.02; // Pull to target
-    const repulsionStrength = 0.8;   // Overlap push
-    const damping = 0.95;            // Friction (increased)
-    const maxVelocity = 2.0;         // Speed limit
+    // "Liquid / Space" physics: almost no attraction, very slow drift, squishy
+    // Tuned for cluster cohesion + slow drift:
+    const attractionStrength = 0.005;  // Enough to keep them tethered to clusters, but loose
+    const repulsionStrength = 0.2;     // Soft collisions
+    const driftStrength = 0.008;       // Subtle drift matching the slow speed
+    const damping = 0.96;              // Gliding feel
+    const maxVelocity = 0.4;           // Slightly faster speed limit (Requested)
+
+    const time = lastTimeRef.current; // Use latest animation timestamp
 
     // 1. Apply forces
     for (let i = 0; i < nodes.length; i++) {
@@ -134,6 +143,14 @@ export function useCanvasRenderer({
       const dy = node.targetY - node.y;
       node.vx += dx * attractionStrength;
       node.vy += dy * attractionStrength;
+
+      // Drift / "Float" force
+      // Uses time and random phase to create continuous, organic movement
+      // Extremely slow sine wave (approx 60-90s period)
+      const driftX = Math.sin(time * 0.0001 + node.phaseX);
+      const driftY = Math.cos(time * 0.00008 + node.phaseY);
+      node.vx += driftX * driftStrength;
+      node.vy += driftY * driftStrength;
 
       // Repulsion from other nodes (Collision)
       for (let j = i + 1; j < nodes.length; j++) {
