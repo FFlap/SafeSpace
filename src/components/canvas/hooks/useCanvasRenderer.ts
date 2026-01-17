@@ -65,7 +65,7 @@ export function useCanvasRenderer({
 
   // Calculate bubble radius based on active user count
   const getBubbleRadius = useCallback((activeUserCount: number) => {
-    return 40 + Math.sqrt(activeUserCount) * 15;
+    return 70 + Math.sqrt(Math.max(1, activeUserCount)) * 22;
   }, []);
 
   // Hit detection for bubbles

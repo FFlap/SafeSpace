@@ -41,6 +41,7 @@ export function BubbleField({
     },
     onEscape,
     enabled: !overlayOpen,
+    panSpeed: 360,
   });
 
   // Mouse drag handling

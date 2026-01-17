@@ -29,11 +29,11 @@ export function ThreadList({
 
   if (filteredThreads.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+      <div className="flex flex-col items-center justify-center py-8 text-white/70">
         <p className="text-sm">
           {searchTerm ? "No threads found" : "No threads yet"}
         </p>
-        <p className="text-xs mt-1">Create one to start a conversation</p>
+        <p className="text-xs mt-1 text-white/50">Create one to start a conversation</p>
       </div>
     );
   }

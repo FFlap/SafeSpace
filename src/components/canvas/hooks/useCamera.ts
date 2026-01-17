@@ -27,10 +27,12 @@ export function useCamera(initialCamera?: Partial<Camera>) {
       screenX: number,
       screenY: number,
       canvasWidth: number,
-      canvasHeight: number
+      canvasHeight: number,
+      minZoom = 0.1,
+      maxZoom = 3
     ) => {
       setCamera((prev) => {
-        const clampedZoom = Math.max(0.1, Math.min(3, newZoom));
+        const clampedZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
         const centerX = canvasWidth / 2;
         const centerY = canvasHeight / 2;
         const offsetX =
@@ -48,17 +50,19 @@ export function useCamera(initialCamera?: Partial<Camera>) {
     []
   );
 
-
   const zoomBy = useCallback(
     (
       delta: number,
       screenX: number,
       screenY: number,
       canvasWidth: number,
-      canvasHeight: number
+      canvasHeight: number,
+      minZoom = 0.1,
+      maxZoom = 3
     ) => {
       setCamera((prev) => {
-        const newZoom = Math.max(0.1, Math.min(3, prev.zoom * (1 + delta)));
+        const nextZoom = prev.zoom * (1 + delta);
+        const newZoom = Math.max(minZoom, Math.min(maxZoom, nextZoom));
         const centerX = canvasWidth / 2;
         const centerY = canvasHeight / 2;
         const offsetX =

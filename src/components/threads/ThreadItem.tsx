@@ -34,15 +34,15 @@ export function ThreadItem({
   onLeave,
 }: ThreadItemProps) {
   return (
-    <div className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-800/50 transition-colors">
+    <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/12 border border-white/5 hover:border-white/15 transition-colors">
       <div className="flex-1 min-w-0">
         <h4 className="text-sm font-medium text-white truncate">{thread.name}</h4>
         <div className="flex items-center gap-2 mt-1">
-          <span className="flex items-center gap-1 text-xs text-slate-400">
+          <span className="flex items-center gap-1 text-xs text-white/60">
             <Users className="w-3 h-3" />
             {thread.memberCount}
           </span>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-white/40">
             {formatTimeAgo(thread.lastActiveAt)}
           </span>
         </div>
@@ -53,7 +53,7 @@ export function ThreadItem({
           variant="ghost"
           size="sm"
           onClick={() => onLeave(thread._id)}
-          className="text-slate-400 hover:text-white hover:bg-slate-700"
+          className="text-white/70 hover:text-white hover:bg-white/10"
         >
           Leave
         </Button>
@@ -62,7 +62,7 @@ export function ThreadItem({
           variant="ghost"
           size="sm"
           onClick={() => onJoin(thread._id)}
-          className="text-indigo-400 hover:text-indigo-300 hover:bg-slate-700"
+          className="text-[#FAF5F2] hover:text-white hover:bg-white/10"
         >
           Join
         </Button>

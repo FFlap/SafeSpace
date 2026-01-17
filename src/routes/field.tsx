@@ -171,7 +171,7 @@ function FieldPage() {
             HackTheBias
           </button>
           <div className="text-[#C4B8B0] text-sm pointer-events-auto hidden md:block">
-            Use WASD or arrows to pan, +/- to zoom
+            Use WASD or arrows to move, +/- to zoom
           </div>
           <div className="pointer-events-auto">
             <Button

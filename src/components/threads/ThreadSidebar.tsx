@@ -50,18 +50,21 @@ export function ThreadSidebar({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900/95 border-r border-slate-800">
+    <div className="flex flex-col h-full bg-[#3D3637]/55 border-r border-white/10 backdrop-blur-2xl shadow-[0_0_40px_rgba(0,0,0,0.15)]">
       <div className="p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-white">Threads</h3>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
+              <Button
+                size="sm"
+                className="bg-[#9B8B7E]/80 hover:bg-[#9B8B7E] text-white rounded-full px-4"
+              >
                 <Plus className="w-4 h-4 mr-1" />
                 Create
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-slate-900 border-slate-800">
+            <DialogContent className="bg-[#3D3637]/90 border-white/10 backdrop-blur-xl">
               <DialogHeader>
                 <DialogTitle className="text-white">Create Thread</DialogTitle>
               </DialogHeader>
@@ -73,20 +76,20 @@ export function ThreadSidebar({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleCreateThread();
                   }}
-                  className="bg-slate-800 border-slate-700 text-white"
+                  className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
                 />
                 <div className="flex justify-end gap-2">
                   <Button
                     variant="ghost"
                     onClick={() => setDialogOpen(false)}
-                    className="text-slate-400"
+                    className="text-white/70 hover:text-white hover:bg-white/10"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={handleCreateThread}
                     disabled={!newThreadName.trim()}
-                    className="bg-indigo-600 hover:bg-indigo-700"
+                    className="bg-white/90 text-slate-900 hover:bg-white"
                   >
                     Create
                   </Button>
@@ -99,9 +102,9 @@ export function ThreadSidebar({
         <ThreadSearch value={searchTerm} onChange={setSearchTerm} />
       </div>
 
-      <Separator className="bg-slate-800" />
+      <Separator className="bg-white/10" />
 
-      <ScrollArea className="flex-1 px-4 py-2">
+      <ScrollArea className="flex-1 px-4 py-2 backdrop-blur">
         <ThreadList
           threads={threads}
           memberThreadIds={memberThreadIds}

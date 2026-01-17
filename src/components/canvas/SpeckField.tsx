@@ -22,6 +22,8 @@ interface SpeckFieldProps {
   speechBubbles?: Array<{ userId: Id<"users">; body: string; createdAt: number }>;
   onSpeckClick?: (userId: Id<"users">) => void;
   keyboardEnabled?: boolean;
+  zoomBounds?: { min: number; max: number };
+  initialZoom?: number;
   onViewTransform?: (transform: {
     bubbleCenter: { x: number; y: number };
     zoom: number;
@@ -150,11 +152,15 @@ export function SpeckField({
   speechBubbles,
   onSpeckClick,
   keyboardEnabled = true,
+  zoomBounds,
+  initialZoom,
   onViewTransform,
   onScreenToWorldReady,
 }: SpeckFieldProps) {
-  const { camera, pan, zoomBy, screenToWorld, worldToScreen } = useCamera();
+  const { camera, pan, zoomBy, screenToWorld, worldToScreen, setCamera } = useCamera();
   const [isDragging, setIsDragging] = useState(false);
+  const velocityRef = useRef({ x: 0, y: 0 });
+  const leadRef = useRef({ x: 0, y: 0 });
 
   useDisableBrowserZoom(true);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -209,6 +215,37 @@ export function SpeckField({
     onViewTransform({ bubbleCenter, zoom: camera.zoom });
   }, [onViewTransform, camera.x, camera.y, camera.zoom, dimensions.width, dimensions.height]);
 
+  useEffect(() => {
+    if (!currentUserId || !currentUserPosition) return;
+
+    const targetLead = {
+      x: velocityRef.current.x * 0.18,
+      y: velocityRef.current.y * 0.18,
+    };
+    const blend = 0.12;
+    leadRef.current = {
+      x: leadRef.current.x + (targetLead.x - leadRef.current.x) * blend,
+      y: leadRef.current.y + (targetLead.y - leadRef.current.y) * blend,
+    };
+
+    setCamera((prev) => {
+      const nextX = currentUserPosition.x + leadRef.current.x;
+      const nextY = currentUserPosition.y + leadRef.current.y;
+      return { ...prev, x: nextX, y: nextY };
+    });
+  }, [currentUserId, currentUserPosition, setCamera]);
+
+  useEffect(() => {
+    if (!zoomBounds) return;
+    if (!dimensions.width || !dimensions.height) return;
+    setCamera((prev) => {
+      const startZoom = initialZoom ?? prev.zoom;
+      const clamped = Math.max(zoomBounds.min, Math.min(zoomBounds.max, startZoom));
+      if (Math.abs(clamped - prev.zoom) < 0.0001) return prev;
+      return { ...prev, zoom: clamped };
+    });
+  }, [zoomBounds, dimensions.width, dimensions.height, setCamera, initialZoom]);
+
   // Keyboard navigation
   useKeyboardNav({
     onPan: pan,
@@ -216,9 +253,20 @@ export function SpeckField({
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
-      zoomBy(delta, rect.width / 2, rect.height / 2, rect.width, rect.height);
+      zoomBy(
+        delta,
+        rect.width / 2,
+        rect.height / 2,
+        rect.width,
+        rect.height,
+        zoomBounds?.min,
+        zoomBounds?.max
+      );
     },
     enabled: keyboardEnabled,
+    onVelocity: (vx, vy) => {
+      velocityRef.current = { x: vx, y: vy };
+    },
   });
 
   // Render specks on canvas
@@ -339,7 +387,7 @@ export function SpeckField({
       );
 
       // Determine size and color
-      const baseSize = 4;
+      const baseSize = 3;
       const size = baseSize * camera.zoom;
 
       const fillColor = isInSameThread ? "#FAF5F2" : "#C4B8B0";
@@ -360,7 +408,7 @@ export function SpeckField({
 
     // Draw current user.
     if (currentUserId) {
-      const baseSize = 6;
+      const baseSize = 5;
       const size = baseSize * camera.zoom;
 
       ctx.beginPath();
@@ -422,14 +470,16 @@ export function SpeckField({
 
   // Mouse drag handling
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!keyboardEnabled) return;
     setIsDragging(true);
     lastMousePos.current = { x: e.clientX, y: e.clientY };
     mouseDownPos.current = { x: e.clientX, y: e.clientY };
     didDrag.current = false;
-  }, []);
+  }, [keyboardEnabled]);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
+      if (!keyboardEnabled) return;
       if (isDragging) {
         const dx = e.clientX - lastMousePos.current.x;
         const dy = e.clientY - lastMousePos.current.y;
@@ -443,16 +493,18 @@ export function SpeckField({
         lastMousePos.current = { x: e.clientX, y: e.clientY };
       }
     },
-    [isDragging, pan]
+    [isDragging, pan, keyboardEnabled]
   );
 
   const handleMouseUp = useCallback(() => {
+    if (!keyboardEnabled) return;
     setIsDragging(false);
-  }, []);
+  }, [keyboardEnabled]);
 
   const handleMouseLeave = useCallback(() => {
+    if (!keyboardEnabled) return;
     setIsDragging(false);
-  }, []);
+  }, [keyboardEnabled]);
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -472,7 +524,7 @@ export function SpeckField({
         const dy = y - screenPos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        const radius = Math.max(10, 10 * camera.zoom);
+        const radius = Math.max(8, 8 * camera.zoom);
         if (dist <= radius && (!hit || dist < hit.dist)) {
           hit = { userId: p.userId, dist };
         }
@@ -486,6 +538,7 @@ export function SpeckField({
   // Wheel zoom
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
+      if (!keyboardEnabled) return;
       e.preventDefault();
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -495,9 +548,9 @@ export function SpeckField({
       const y = e.clientY - rect.top;
 
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      zoomBy(delta, x, y, rect.width, rect.height);
+      zoomBy(delta, x, y, rect.width, rect.height, zoomBounds?.min, zoomBounds?.max);
     },
-    [zoomBy]
+    [zoomBy, keyboardEnabled, zoomBounds?.min, zoomBounds?.max]
   );
 
   return (
@@ -505,7 +558,7 @@ export function SpeckField({
       ref={canvasRef}
       className="w-full h-full"
       style={{
-        cursor: isDragging ? "grabbing" : "grab",
+        cursor: keyboardEnabled ? (isDragging ? "grabbing" : "grab") : "default",
       }}
       onClick={handleClick}
       onMouseDown={handleMouseDown}

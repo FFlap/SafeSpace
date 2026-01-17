@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ThreadOverlay } from "@/components/threads/ThreadOverlay";
+import { ThreadSidebar } from "@/components/threads/ThreadSidebar";
 import { useThreadMessages } from "@/hooks/useThreadMessages";
 import { useKeyboardNav } from "@/components/canvas/hooks/useKeyboardNav";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -93,7 +94,7 @@ export function SpaceOverlay({
   onRequestDm,
   onCurrentUserPositionChange,
 }: SpaceOverlayProps) {
-  const bubbleRadius = 260 + Math.sqrt(Math.max(1, presence.length)) * 120;
+  const bubbleRadius = 360 + Math.sqrt(Math.max(1, presence.length)) * 140;
   const calmSpaceColor = useMemo(() => {
     const rgb = hexToRgb(spaceColor);
     return rgb ? rgbToHex(mixWithWhite(rgb, 0.9)) : spaceColor;
@@ -106,8 +107,8 @@ export function SpaceOverlay({
     x: 0,
     y: 0,
   });
-  const currentUserPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const viewZoomRef = useRef(1);
+  const hasSpawnedRef = useRef(false);
 
   const currentThread = useMemo(
     () => threads.find((t) => t._id === currentThreadId) ?? null,
@@ -141,46 +142,45 @@ export function SpaceOverlay({
     return [...byUser.values()];
   }, [currentThreadId, presence, threadMessages]);
 
-  const threadAnchorRef = useRef<HTMLDivElement>(null);
-  const viewTransformRef = useRef<{
-    bubbleCenter: { x: number; y: number };
-    zoom: number;
-  } | null>(null);
-
-  const updateThreadAnchor = useCallback(
-    (bubbleCenter: { x: number; y: number }, zoom: number, userPos: { x: number; y: number }) => {
-      const anchor = threadAnchorRef.current;
-      if (!anchor) return;
-      const x = bubbleCenter.x + userPos.x * zoom;
-      const y = bubbleCenter.y + userPos.y * zoom;
-      anchor.style.transform = `translate(${x}px, ${y}px)`;
-      anchor.style.setProperty("--zoom", `${zoom}`);
-      anchor.style.setProperty("--invZoom", `${zoom ? 1 / zoom : 1}`);
+  const handleViewTransform = useCallback(
+    ({ zoom }: { bubbleCenter: { x: number; y: number }; zoom: number }) => {
       viewZoomRef.current = zoom;
     },
     []
   );
 
-  const handleViewTransform = useCallback(
-    ({ bubbleCenter, zoom }: { bubbleCenter: { x: number; y: number }; zoom: number }) => {
-      viewTransformRef.current = { bubbleCenter, zoom };
-      updateThreadAnchor(bubbleCenter, zoom, currentUserPositionRef.current);
-    },
-    [updateThreadAnchor]
-  );
 
-  const threadRingRadius = Math.max(140, Math.min(240, 120 + threads.length * 6));
+  const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
 
   useEffect(() => {
-    currentUserPositionRef.current = currentUserPosition;
+    const handleResize = () => {
+      setViewport({ width: window.innerWidth, height: window.innerHeight });
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const maxZoom = useMemo(() => {
+    return Math.min(viewport.width, viewport.height) / (bubbleRadius * 2);
+  }, [bubbleRadius, viewport.height, viewport.width]);
+
+  const minZoom = Math.max(0.8, Math.min(2.2, maxZoom * 1.6));
+  const zoomBounds = { min: minZoom, max: maxZoom };
+
+
+  useEffect(() => {
     onCurrentUserPositionChange?.(currentUserPosition);
   }, [currentUserPosition, onCurrentUserPositionChange]);
 
   useEffect(() => {
-    const vt = viewTransformRef.current;
-    if (!vt) return;
-    updateThreadAnchor(vt.bubbleCenter, vt.zoom, currentUserPosition);
-  }, [currentUserPosition, updateThreadAnchor]);
+    if (hasSpawnedRef.current) return;
+    const radius = Math.max(20, bubbleRadius * 0.2);
+    const angle = Math.random() * Math.PI * 2;
+    hasSpawnedRef.current = true;
+    setCurrentUserPosition({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+  }, [bubbleRadius]);
+
 
   useEffect(() => {
     setCurrentUserPosition((prev) => {
@@ -212,7 +212,7 @@ export function SpaceOverlay({
     },
     onZoom: () => {},
     enabled: Boolean(currentUserId),
-    panSpeed: 36,
+    panSpeed: 320,
   });
 
   return (
@@ -229,6 +229,8 @@ export function SpaceOverlay({
           currentUserPosition={currentUserPosition}
           speechBubbles={speechBubbles}
           keyboardEnabled={false}
+          zoomBounds={zoomBounds}
+          initialZoom={minZoom}
           onSpeckClick={(userId) => {
             if (!onRequestDm || !currentUserId) return;
             if (userId === currentUserId) return;
@@ -236,62 +238,23 @@ export function SpaceOverlay({
           }}
           onViewTransform={handleViewTransform}
         />
+        <div className="absolute inset-y-16 left-0 w-[320px] bg-gradient-to-r from-[#3D3637]/65 via-[#3D3637]/30 to-transparent pointer-events-none" />
       </div>
 
-      {/* Thread specks around you */}
-      <div className="absolute inset-0 z-10 pointer-events-none">
-        <div
-          ref={threadAnchorRef}
-          className="absolute left-0 top-0 pointer-events-none will-change-transform"
-          style={{ transform: "translate(50vw, 50vh)" }}
-        >
-          <div
-            className="relative pointer-events-none"
-            style={{ transform: "scale(var(--zoom, 1))", transformOrigin: "0 0" }}
-          >
-            {threads.map((thread, index) => {
-              const angle =
-                (index / Math.max(1, threads.length)) * Math.PI * 2 - Math.PI / 2;
-              const x = Math.cos(angle) * threadRingRadius;
-              const y = Math.sin(angle) * threadRingRadius;
-
-              const baseSize = 12;
-              const size = Math.max(
-                10,
-                Math.min(22, baseSize + Math.sqrt(thread.memberCount) * 4)
-              );
-              const isActive = currentThreadId === thread._id;
-              const isMember = memberThreadIds.has(thread._id);
-
-              return (
-                <button
-                  key={thread._id}
-                  type="button"
-                  title={thread.name}
-                  onClick={() => onJoinThread(thread._id)}
-                  className={`pointer-events-auto absolute left-0 top-0 rounded-full transition-all ${
-                    isActive
-                      ? "bg-[#FAF5F2] shadow-[0_0_0_4px_rgba(250,245,242,0.15)]"
-                      : isMember
-                        ? "bg-[#FAF5F2]/60 hover:bg-[#FAF5F2]/80"
-                        : "bg-[#C4B8B0]/60 hover:bg-[#C4B8B0]/80"
-                  }`}
-                  style={{
-                    width: size,
-                    height: size,
-                    transform: `translate(${x}px, ${y}px) translate(-50%, -50%) scale(var(--invZoom, 1))`,
-                  }}
-                />
-              );
-            })}
-          </div>
-        </div>
+      <div className="absolute left-0 top-16 bottom-0 w-[300px] z-20 pointer-events-auto">
+        <ThreadSidebar
+          threads={threads}
+          memberThreadIds={memberThreadIds}
+          onCreateThread={onCreateThread}
+          onJoinThread={onJoinThread}
+          onLeaveThread={onLeaveThread}
+        />
       </div>
 
       {/* Header */}
       <div className="absolute top-16 left-0 right-0 z-10 p-4 pointer-events-none">
         <div className="flex items-center justify-between pointer-events-auto">
-          <div className="flex items-center gap-3 rounded-full bg-[#3D3637]/85 backdrop-blur-md border border-white/10 px-4 py-2 shadow-lg">
+          <div className="flex items-center gap-3 rounded-full bg-[#3D3637]/85 backdrop-blur-md border border-white/10 px-4 py-2 shadow-lg ml-[300px]">
             <div
               className="w-3.5 h-3.5 rounded-full ring-2 ring-white/20"
               style={{ backgroundColor: calmSpaceColor }}
