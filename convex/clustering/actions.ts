@@ -70,6 +70,7 @@ export const computeLayout = internalAction({
       internal.spaces.internalQueries.getAllSpacesForLayout
     );
     const links = await ctx.runQuery(internal.spaces.internalQueries.getAllLinks);
+    const presence = await ctx.runQuery(internal.presence.internalQueries.getAllPresence);
 
     if (spaces.length === 0) return { success: true };
 
@@ -105,16 +106,43 @@ export const computeLayout = internalAction({
       });
     }
 
+    const now = Date.now();
+    const activeThreshold = now - 30000;
+    const activeCounts = new Map<string, number>();
+    for (const p of presence) {
+      if (p.lastSeen <= activeThreshold) continue;
+      activeCounts.set(p.spaceId, (activeCounts.get(p.spaceId) ?? 0) + 1);
+    }
+
+    const baseBubbleRadius = 70;
+    const bubbleScale = 22;
+    const bubbleRadii = new Map<string, number>();
+    for (const space of spaces) {
+      const activeUserCount = activeCounts.get(space._id) ?? 0;
+      bubbleRadii.set(
+        space._id,
+        baseBubbleRadius + Math.sqrt(Math.max(1, activeUserCount)) * bubbleScale
+      );
+    }
+
     // Initialize positions near cluster centers
     const positions = new Map<string, { x: number; y: number }>();
 
     for (const [clusterId, clusterSpaces] of clusterMap.entries()) {
       const center = clusterCenters.get(clusterId)!;
+      const avgRadius =
+        clusterSpaces.reduce(
+          (sum, space) => sum + (bubbleRadii.get(space._id) ?? baseBubbleRadius),
+          0
+        ) / clusterSpaces.length;
 
       for (let i = 0; i < clusterSpaces.length; i++) {
         // Spread within cluster
         const clusterAngle = (2 * Math.PI * i) / clusterSpaces.length;
-        const clusterRadius = Math.min(150, 50 + clusterSpaces.length * 20);
+        const clusterRadius = Math.min(
+          300,
+          Math.max(140, avgRadius * 1.4 + clusterSpaces.length * 18)
+        );
 
         positions.set(clusterSpaces[i]._id, {
           x: center.x + Math.cos(clusterAngle) * clusterRadius,
@@ -124,8 +152,10 @@ export const computeLayout = internalAction({
     }
 
     // Run simple force-directed simulation
-    const iterations = 100;
-    const repulsion = 5000;
+    const iterations = 160;
+    const repulsion = 6500;
+    const collisionPadding = 36;
+    const collisionStrength = 0.8;
     const attraction = 0.01;
     const damping = 0.9;
     const padding = 20; // Extra space between bubbles
@@ -151,6 +181,9 @@ export const computeLayout = internalAction({
           const dx = posJ.x - posI.x;
           const dy = posJ.y - posI.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const radiusI = bubbleRadii.get(spaces[i]._id) ?? baseBubbleRadius;
+          const radiusJ = bubbleRadii.get(spaces[j]._id) ?? baseBubbleRadius;
+          const minDistance = radiusI + radiusJ + collisionPadding;
 
           // Standard repulsion
           const force = repulsion / (dist * dist);
@@ -177,6 +210,18 @@ export const computeLayout = internalAction({
           velI.vy -= fy;
           velJ.vx += fx;
           velJ.vy += fy;
+
+          if (dist < minDistance) {
+            const overlap = minDistance - dist;
+            const push = overlap * collisionStrength;
+            const pushX = (dx / dist) * push;
+            const pushY = (dy / dist) * push;
+
+            velI.vx -= pushX;
+            velI.vy -= pushY;
+            velJ.vx += pushX;
+            velJ.vy += pushY;
+          }
         }
       }
 

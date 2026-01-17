@@ -26,6 +26,7 @@ export function BubbleField({
     camera,
     spaces,
     onSpaceClick,
+    hoveredSpaceId,
   });
 
   useDisableBrowserZoom(true);
