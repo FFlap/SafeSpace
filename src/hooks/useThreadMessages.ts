@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { anyApi } from "convex/server";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -53,7 +53,7 @@ export function useThreadNameConsent(
 }
 
 export function useThreadMessageMutations() {
-  const sendThreadMessage = useMutation(anyApi.messages.mutations.sendThreadMessage);
+  const sendThreadMessage = useAction(anyApi.messages.actions.sendThreadMessage);
   const setThreadNameConsent = useMutation(
     anyApi.messages.mutations.setThreadNameConsent
   );

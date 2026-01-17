@@ -1,4 +1,4 @@
-import { mutation } from "../_generated/server";
+import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
 
 function orderedPair(a: string, b: string): [string, string] {
@@ -114,7 +114,7 @@ export const respondToDmRequest = mutation({
   },
 });
 
-export const sendDmMessage = mutation({
+export const sendDmMessage = internalMutation({
   args: {
     conversationId: v.id("dmConversations"),
     userId: v.id("users"),
@@ -131,6 +131,7 @@ export const sendDmMessage = mutation({
       (conversation as any).userA === args.userId || (conversation as any).userB === args.userId;
     if (!isParticipant) throw new Error("Not a participant in this conversation");
 
+    // Save message immediately for optimistic UI
     const db = ctx.db as any;
     const now = Date.now();
     const messageId = await db.insert("dmMessages", {
@@ -138,6 +139,7 @@ export const sendDmMessage = mutation({
       senderId: args.userId,
       body,
       createdAt: now,
+      isSystemMessage: false,
     });
 
     return messageId;
@@ -181,4 +183,3 @@ export const setDmNameConsent = mutation({
     });
   },
 });
-

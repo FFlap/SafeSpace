@@ -1,7 +1,7 @@
-import { mutation } from "../_generated/server";
+import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
 
-export const sendThreadMessage = mutation({
+export const sendThreadMessage = internalMutation({
   args: {
     threadId: v.id("spaceThreads"),
     userId: v.id("users"),
@@ -13,8 +13,8 @@ export const sendThreadMessage = mutation({
       throw new Error("Message cannot be empty");
     }
 
-    const now = Date.now();
     const db = ctx.db as any;
+    const now = Date.now();
 
     const membership = await db
       .query("threadMembers")
@@ -27,11 +27,13 @@ export const sendThreadMessage = mutation({
       throw new Error("Must join the thread to send messages");
     }
 
+    // Save message immediately for optimistic UI
     const messageId = await db.insert("threadMessages", {
       threadId: args.threadId,
       userId: args.userId,
       body,
       createdAt: now,
+      isSystemMessage: false,
     });
 
     await ctx.db.patch(args.threadId, { lastActiveAt: now });

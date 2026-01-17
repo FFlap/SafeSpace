@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { anyApi } from "convex/server";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -101,7 +101,7 @@ export function useDmNameConsent(
 export function useDmMutations() {
   const requestDm = useMutation(anyApi.dms.mutations.requestDm);
   const respondToDmRequest = useMutation(anyApi.dms.mutations.respondToDmRequest);
-  const sendDmMessage = useMutation(anyApi.dms.mutations.sendDmMessage);
+  const sendDmMessage = useAction(anyApi.dms.actions.sendDmMessage);
   const setDmNameConsent = useMutation(anyApi.dms.mutations.setDmNameConsent);
 
   return { requestDm, respondToDmRequest, sendDmMessage, setDmNameConsent };

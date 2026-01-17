@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Eye, EyeOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,18 +25,98 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
   const { shareName } = useDmNameConsent(conversationId, currentUserId);
   const { sendDmMessage, setDmNameConsent } = useDmMutations();
 
+  const [pendingMessages, setPendingMessages] = useState<
+    Array<{
+      _id: string;
+      conversationId: Id<"dmConversations">;
+      senderId: Id<"users">;
+      body: string;
+      createdAt: number;
+      displayName?: string | null;
+      isPending: true;
+      serverId?: string;
+    }>
+  >([]);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isTogglingName, setIsTogglingName] = useState(false);
+  const [moderationWarning, setModerationWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPendingMessages([]);
+    setModerationWarning(null);
+  }, [conversationId]);
+
+  const displayMessages = useMemo(() => {
+    const serverIds = new Set(messages.map((m) => m._id));
+    const pending = pendingMessages.filter((p) => !p.serverId || !serverIds.has(p.serverId as any));
+    return [...messages, ...pending].sort((a, b) => a.createdAt - b.createdAt);
+  }, [messages, pendingMessages]);
+
+  useEffect(() => {
+    const serverIds = new Set(messages.map((m) => m._id));
+    setPendingMessages((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev.filter((p) => !p.serverId || !serverIds.has(p.serverId as any));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [messages]);
+
+  useEffect(() => {
+    if (!moderationWarning) return;
+    const id = window.setTimeout(() => setModerationWarning(null), 6000);
+    return () => window.clearTimeout(id);
+  }, [moderationWarning]);
+
+  const makePendingId = () => {
+    const randomPart =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? (crypto as any).randomUUID()
+        : Math.random().toString(16).slice(2);
+    return `pending-${Date.now()}-${randomPart}`;
+  };
 
   const handleSend = async () => {
     const body = draft.trim();
     if (!body) return;
 
+    const pendingId = makePendingId();
+    const pendingCreatedAt = Date.now();
+
     setDraft("");
     setIsSending(true);
+    setPendingMessages((prev) => [
+      ...prev,
+      {
+        _id: pendingId,
+        conversationId,
+        senderId: currentUserId,
+        body,
+        createdAt: pendingCreatedAt,
+        displayName: null,
+        isPending: true,
+      },
+    ]);
     try {
-      await sendDmMessage({ conversationId, userId: currentUserId, body });
+      const res = await sendDmMessage({ conversationId, userId: currentUserId, body });
+      if ((res as any)?.status === "blocked") {
+        setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+        setModerationWarning((res as any)?.warning ?? "Message blocked.");
+        return;
+      }
+      if ((res as any)?.status === "sent") {
+        const serverId = (res as any)?.messageId as string | undefined;
+        if (serverId) {
+          setPendingMessages((prev) =>
+            prev.map((p) => (p._id === pendingId ? { ...p, serverId } : p))
+          );
+        } else {
+          setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+        }
+      }
+    } catch {
+      setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+      setModerationWarning("Message failed to send.");
     } finally {
       setIsSending(false);
     }
@@ -91,7 +171,8 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
 
           <ScrollArea className="flex-1 p-4">
             <div className="space-y-3">
-              {messages.map((m) => {
+              {displayMessages.map((m) => {
+                const isPending = Boolean((m as any).isPending);
                 const isMine = m.senderId === currentUserId;
                 return (
                   <div
@@ -101,11 +182,12 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
                     <div
                       className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                         isMine ? "bg-[#FAF5F2] text-[#3D3637]" : "bg-white/10 text-white"
-                      }`}
+                      } ${isPending ? "opacity-70" : ""}`}
                     >
                       <div className="text-[11px] opacity-70 mb-1">
                         {m.displayName ? `${m.displayName} • ` : ""}
                         {formatTime(m.createdAt)}
+                        {isPending ? " • Sending..." : ""}
                       </div>
                       <div className="whitespace-pre-wrap break-words">{m.body}</div>
                     </div>
@@ -115,23 +197,28 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
             </div>
           </ScrollArea>
 
-          <div className="p-4 border-t border-white/10 flex gap-2">
-            <Input
-              value={draft}
-              placeholder="Say something..."
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSend();
-              }}
-              className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
-            />
-            <Button
-              onClick={handleSend}
-              disabled={isSending || !draft.trim()}
-              className="bg-[#FAF5F2] text-[#3D3637] hover:bg-[#FAF5F2]/90"
-            >
-              Send
-            </Button>
+          <div className="border-t border-white/10">
+            {moderationWarning && (
+              <div className="px-4 pt-3 text-xs text-red-200">{moderationWarning}</div>
+            )}
+            <div className="p-4 flex gap-2">
+              <Input
+                value={draft}
+                placeholder="Say something..."
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSend();
+                }}
+                className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+              />
+              <Button
+                onClick={handleSend}
+                disabled={isSending || !draft.trim()}
+                className="bg-[#FAF5F2] text-[#3D3637] hover:bg-[#FAF5F2]/90"
+              >
+                Send
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -141,4 +228,3 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
     </div>
   );
 }
-
