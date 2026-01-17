@@ -161,6 +161,10 @@ export function SpeckField({
   const [isDragging, setIsDragging] = useState(false);
   const velocityRef = useRef({ x: 0, y: 0 });
   const leadRef = useRef({ x: 0, y: 0 });
+  const presenceHistoryRef = useRef(
+    new Map<string, Array<{ x: number; y: number; t: number }>>()
+  );
+  const smoothedPositionsRef = useRef(new Map<string, { x: number; y: number }>());
 
   useDisableBrowserZoom(true);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -168,6 +172,70 @@ export function SpeckField({
   const didDrag = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+  const getSmoothedPosition = useCallback(
+    (userId: string, fallback: { x: number; y: number }) => {
+      const now = performance.now();
+      const renderTime = now - 300;
+      const history = presenceHistoryRef.current.get(userId) ?? [];
+      if (history.length === 0) return fallback;
+      if (history.length < 2) {
+        const only = history[0];
+        return { x: only.x, y: only.y };
+      }
+
+      let left = history[0];
+      let right = history[history.length - 1];
+
+      for (let i = 0; i < history.length; i++) {
+        const snap = history[i];
+        if (snap.t <= renderTime) {
+          left = snap;
+        }
+        if (snap.t >= renderTime) {
+          right = snap;
+          break;
+        }
+      }
+
+      let target = fallback;
+      if (left && right && right.t > left.t && renderTime <= right.t) {
+        const span = right.t - left.t;
+        const t = span > 0 ? (renderTime - left.t) / span : 0;
+        const t2 = t * t * (3 - 2 * t);
+        target = {
+          x: left.x + (right.x - left.x) * t2,
+          y: left.y + (right.y - left.y) * t2,
+        };
+      } else {
+        const latest = history[history.length - 1];
+        target = { x: latest.x, y: latest.y };
+      }
+
+      const lastTarget = smoothedPositionsRef.current.get(`${userId}-target`) ?? target;
+      const targetEase = 0.2;
+      const blendedTarget = {
+        x: lastTarget.x + (target.x - lastTarget.x) * targetEase,
+        y: lastTarget.y + (target.y - lastTarget.y) * targetEase,
+      };
+      smoothedPositionsRef.current.set(`${userId}-target`, blendedTarget);
+
+      const last = smoothedPositionsRef.current.get(userId);
+      if (!last) {
+        smoothedPositionsRef.current.set(userId, blendedTarget);
+        return blendedTarget;
+      }
+
+      const ease = 0.1;
+      const next = {
+        x: last.x + (blendedTarget.x - last.x) * ease,
+        y: last.y + (blendedTarget.y - last.y) * ease,
+      };
+      smoothedPositionsRef.current.set(userId, next);
+      return next;
+    },
+    []
+  );
 
   // Handle resize
   useEffect(() => {
@@ -283,6 +351,27 @@ export function SpeckField({
     const renderWidth = dimensions.width;
     const renderHeight = dimensions.height;
 
+    const snapshotNow = performance.now();
+    const activeIds = new Set<string>();
+    presence.forEach((p) => {
+      if (currentUserId && p.userId === currentUserId) return;
+      activeIds.add(p.userId);
+      const history = presenceHistoryRef.current.get(p.userId) ?? [];
+      history.push({ x: p.position.x, y: p.position.y, t: snapshotNow });
+      if (history.length > 10) {
+        history.splice(0, history.length - 10);
+      }
+      presenceHistoryRef.current.set(p.userId, history);
+    });
+
+    for (const id of presenceHistoryRef.current.keys()) {
+      if (!activeIds.has(id)) {
+        presenceHistoryRef.current.delete(id);
+        smoothedPositionsRef.current.delete(id);
+        smoothedPositionsRef.current.delete(`${id}-target`);
+      }
+    }
+
     // Background (white grid outside bubble)
     ctx.fillStyle = outsideColor;
     ctx.fillRect(0, 0, renderWidth, renderHeight);
@@ -378,10 +467,12 @@ export function SpeckField({
       const isInSameThread =
         currentThreadId !== null && p.currentThreadId === currentThreadId;
 
+      const smoothed = getSmoothedPosition(p.userId, p.position);
+
       // Convert world position to screen position
       const screenPos = worldToScreen(
-        p.position.x,
-        p.position.y,
+        smoothed.x,
+        smoothed.y,
         renderWidth,
         renderHeight
       );
@@ -443,12 +534,8 @@ export function SpeckField({
         const presenceItem = presence.find((p) => p.userId === bubble.userId);
         if (!presenceItem) continue;
 
-        const screenPos = worldToScreen(
-          presenceItem.position.x,
-          presenceItem.position.y,
-          renderWidth,
-          renderHeight
-        );
+        const smoothed = getSmoothedPosition(presenceItem.userId, presenceItem.position);
+        const screenPos = worldToScreen(smoothed.x, smoothed.y, renderWidth, renderHeight);
         drawSpeechBubble(ctx, screenPos.x, screenPos.y, bubble.body);
       }
     }
@@ -466,6 +553,7 @@ export function SpeckField({
     camera,
     dimensions,
     worldToScreen,
+    getSmoothedPosition,
   ]);
 
   // Mouse drag handling
@@ -519,7 +607,8 @@ export function SpeckField({
       let hit: { userId: Id<"users">; dist: number } | null = null;
       for (const p of presence) {
         if (currentUserId && p.userId === currentUserId) continue;
-        const screenPos = worldToScreen(p.position.x, p.position.y, rect.width, rect.height);
+        const smoothed = getSmoothedPosition(p.userId, p.position);
+        const screenPos = worldToScreen(smoothed.x, smoothed.y, rect.width, rect.height);
         const dx = x - screenPos.x;
         const dy = y - screenPos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
