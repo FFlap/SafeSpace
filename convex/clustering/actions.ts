@@ -66,7 +66,9 @@ export const computeClusters = internalAction({
 export const computeLayout = internalAction({
   args: {},
   handler: async (ctx): Promise<{ success: boolean }> => {
-    const spaces = await ctx.runQuery(internal.spaces.internalQueries.getAllSpaces);
+    const spaces = await ctx.runQuery(
+      internal.spaces.internalQueries.getAllSpacesForLayout
+    );
     const links = await ctx.runQuery(internal.spaces.internalQueries.getAllLinks);
 
     if (spaces.length === 0) return { success: true };
@@ -126,6 +128,12 @@ export const computeLayout = internalAction({
     const repulsion = 5000;
     const attraction = 0.01;
     const damping = 0.9;
+    const padding = 20; // Extra space between bubbles
+
+    const getBubbleRadius = (activeUserCount: number) => {
+      // Must match frontend logic in useCanvasRenderer.ts
+      return 70 + Math.sqrt(Math.max(1, activeUserCount)) * 22;
+    };
 
     const velocities = new Map<string, { vx: number; vy: number }>();
     for (const space of spaces) {
@@ -134,6 +142,7 @@ export const computeLayout = internalAction({
 
     for (let iter = 0; iter < iterations; iter++) {
       // Repulsion between all nodes
+      // Repulsion between all nodes + Collision handling
       for (let i = 0; i < spaces.length; i++) {
         for (let j = i + 1; j < spaces.length; j++) {
           const posI = positions.get(spaces[i]._id)!;
@@ -143,9 +152,23 @@ export const computeLayout = internalAction({
           const dy = posJ.y - posI.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
+          // Standard repulsion
           const force = repulsion / (dist * dist);
-          const fx = (dx / dist) * force;
-          const fy = (dy / dist) * force;
+          let fx = (dx / dist) * force;
+          let fy = (dy / dist) * force;
+
+          // Collision detection
+          const radiusI = getBubbleRadius(spaces[i].activeUserCount);
+          const radiusJ = getBubbleRadius(spaces[j].activeUserCount);
+          const minDist = radiusI + radiusJ + padding;
+
+          if (dist < minDist) {
+            // Stronger repulsion for overlap
+            const overlap = minDist - dist;
+            const collisionForce = overlap * 2; // Spring constant for collision
+            fx += (dx / dist) * collisionForce;
+            fy += (dy / dist) * collisionForce;
+          }
 
           const velI = velocities.get(spaces[i]._id)!;
           const velJ = velocities.get(spaces[j]._id)!;
@@ -205,6 +228,39 @@ export const computeLayout = internalAction({
         vel.vx *= damping;
         vel.vy *= damping;
       }
+    }
+
+    // Final hard collision resolution pass
+    // Run a few iterations to strictly separate overlapping circles
+    for (let iter = 0; iter < 20; iter++) {
+      let moved = false;
+      for (let i = 0; i < spaces.length; i++) {
+        for (let j = i + 1; j < spaces.length; j++) {
+          const posI = positions.get(spaces[i]._id)!;
+          const posJ = positions.get(spaces[j]._id)!;
+
+          const dx = posJ.x - posI.x;
+          const dy = posJ.y - posI.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+
+          const radiusI = getBubbleRadius(spaces[i].activeUserCount);
+          const radiusJ = getBubbleRadius(spaces[j].activeUserCount);
+          const minDist = radiusI + radiusJ + padding;
+
+          if (dist < minDist) {
+            const overlap = minDist - dist;
+            const moveX = (dx / dist) * overlap * 0.5;
+            const moveY = (dy / dist) * overlap * 0.5;
+
+            posI.x -= moveX;
+            posI.y -= moveY;
+            posJ.x += moveX;
+            posJ.y += moveY;
+            moved = true;
+          }
+        }
+      }
+      if (!moved) break;
     }
 
     // Build updates
