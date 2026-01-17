@@ -205,10 +205,10 @@ export function SpaceOverlay({
                   onClick={() => onJoinThread(thread._id)}
                   className={`pointer-events-auto absolute left-0 top-0 rounded-full transition-all ${
                     isActive
-                      ? "bg-white shadow-[0_0_0_4px_rgba(255,255,255,0.15)]"
+                      ? "bg-[#FAF5F2] shadow-[0_0_0_4px_rgba(250,245,242,0.15)]"
                       : isMember
-                        ? "bg-white/60 hover:bg-white/80"
-                        : "bg-gray-300/60 hover:bg-gray-200/80"
+                        ? "bg-[#FAF5F2]/60 hover:bg-[#FAF5F2]/80"
+                        : "bg-[#C4B8B0]/60 hover:bg-[#C4B8B0]/80"
                   }`}
                   style={{
                     width: size,
@@ -225,7 +225,7 @@ export function SpaceOverlay({
       {/* Header */}
       <div className="absolute top-16 left-0 right-0 z-10 p-4 pointer-events-none">
         <div className="flex items-center justify-between pointer-events-auto">
-          <div className="flex items-center gap-3 rounded-full bg-slate-950/80 backdrop-blur-md border border-white/10 px-4 py-2 shadow-lg">
+          <div className="flex items-center gap-3 rounded-full bg-[#3D3637]/85 backdrop-blur-md border border-white/10 px-4 py-2 shadow-lg">
             <div
               className="w-3.5 h-3.5 rounded-full ring-2 ring-white/20"
               style={{ backgroundColor: calmSpaceColor }}
@@ -239,13 +239,13 @@ export function SpaceOverlay({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="bg-slate-950/80 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-slate-950/90 shadow-sm"
+                  className="bg-[#3D3637]/85 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-[#3D3637]/95 shadow-sm"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   New thread
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-slate-950 border-white/10">
+              <DialogContent className="bg-[#3D3637] border-white/10">
                 <DialogHeader>
                   <DialogTitle className="text-white">Create a thread</DialogTitle>
                 </DialogHeader>
@@ -292,7 +292,7 @@ export function SpaceOverlay({
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="bg-slate-950/80 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-slate-950/90 shadow-sm"
+              className="bg-[#3D3637]/85 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-[#3D3637]/95 shadow-sm"
             >
               <X className="w-5 h-5 mr-1" />
               Exit
@@ -302,17 +302,17 @@ export function SpaceOverlay({
       </div>
 
       {/* Legend */}
-      <div className="absolute bottom-4 right-4 bg-black/40 backdrop-blur rounded-lg p-3 space-y-2 pointer-events-none">
+      <div className="absolute bottom-4 right-4 bg-[#3D3637]/60 backdrop-blur rounded-xl p-3 space-y-2 pointer-events-none">
         <div className="flex items-center gap-2 text-xs text-white/80">
-          <div className="w-3 h-3 rounded-full bg-white" />
+          <div className="w-3 h-3 rounded-full bg-[#FAF5F2]" />
           <span>You</span>
         </div>
         <div className="flex items-center gap-2 text-xs text-white/70">
-          <div className="w-2 h-2 rounded-full bg-white" />
+          <div className="w-2 h-2 rounded-full bg-[#FAF5F2]" />
           <span>Active in thread</span>
         </div>
         <div className="flex items-center gap-2 text-xs text-white/70">
-          <div className="w-2 h-2 rounded-full bg-gray-400" />
+          <div className="w-2 h-2 rounded-full bg-[#C4B8B0]" />
           <span>Not in thread</span>
         </div>
       </div>

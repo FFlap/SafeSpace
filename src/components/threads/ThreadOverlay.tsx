@@ -107,13 +107,13 @@ function drawSpeechBubble(
   ctx.quadraticCurveTo(bx, by, bx + radius, by);
   ctx.closePath();
 
-  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+  ctx.fillStyle = "rgba(253, 248, 245, 0.95)";
   ctx.fill();
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
+  ctx.strokeStyle = "rgba(156, 139, 126, 0.25)";
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+  ctx.fillStyle = "rgba(92, 74, 66, 0.92)";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(t, x, by + bubbleHeight / 2 + 1);
@@ -222,10 +222,8 @@ function ThreadParticipantsCanvas({
       ctx.stroke();
     };
 
-    if (minorScreen >= 18) {
-      drawGrid(minorSpacing, "rgba(15, 23, 42, 0.06)");
-    }
-    drawGrid(majorSpacing, "rgba(15, 23, 42, 0.10)");
+    const gridSpacing = minorScreen >= 18 ? minorSpacing : majorSpacing;
+    drawGrid(gridSpacing, "rgba(15, 23, 42, 0.03)");
 
     const minDim = Math.min(width, height);
     const ringRadius = Math.max(90, minDim * 0.3);
@@ -248,7 +246,7 @@ function ThreadParticipantsCanvas({
       const y = screen.y;
 
       const radius = (participant.isCurrentUser ? 9 : 7) * camera.zoom;
-      const fillColor = participant.isActive ? "#ffffff" : "#9ca3af";
+      const fillColor = participant.isActive ? "#FAF5F2" : "#C4B8B0";
 
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -257,7 +255,7 @@ function ThreadParticipantsCanvas({
 
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
+      ctx.strokeStyle = "rgba(92, 74, 66, 0.2)";
       ctx.lineWidth = 1;
       ctx.stroke();
 
@@ -271,7 +269,7 @@ function ThreadParticipantsCanvas({
       if (participant.isCurrentUser) {
         ctx.beginPath();
         ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+        ctx.strokeStyle = "rgba(253, 248, 245, 0.5)";
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -457,11 +455,11 @@ export function ThreadOverlay({
 
   return (
     <div className="fixed inset-0 z-[60]">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-[#3D3637]/40 backdrop-blur-sm" />
 
       <div className="absolute left-0 right-0 bottom-0 top-16 flex">
         {/* Chat */}
-        <div className="w-[420px] max-w-[90vw] h-full bg-slate-950/85 border-r border-white/10 flex flex-col">
+        <div className="w-[420px] max-w-[90vw] h-full bg-[#3D3637]/90 border-r border-white/10 flex flex-col">
           <div className="p-4 flex items-center justify-between border-b border-white/10">
             <div className="min-w-0">
               <div className="text-xs text-white/60">Thread</div>
@@ -526,9 +524,9 @@ export function ThreadOverlay({
                     className={`flex ${isMine ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                      className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                         isMine
-                          ? "bg-white text-slate-900"
+                          ? "bg-[#FAF5F2] text-[#3D3637]"
                           : "bg-white/10 text-white"
                       }`}
                     >
@@ -558,7 +556,7 @@ export function ThreadOverlay({
             <Button
               onClick={handleSend}
               disabled={isSending || !draft.trim() || !currentUserId}
-              className="bg-white text-slate-900 hover:bg-white/90"
+              className="bg-[#FAF5F2] text-[#3D3637] hover:bg-[#FAF5F2]/90"
             >
               Send
             </Button>

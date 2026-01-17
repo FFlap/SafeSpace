@@ -57,24 +57,27 @@ code {
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   
-  /* SafeSpace colors */
-  --color-primary: #8660cc;
+  /* SafeSpace colors - Soft Sanctuary palette */
+  --color-primary: #9B8B7E;
   --color-soft-terracotta: #FDF2F0;
   --color-soft-sage: #F1F5F0;
   --color-soft-lavender: #F5F3FF;
-  --color-earth-brown: #45322E;
-  --color-deep-blue: #1E293B;
-  --color-deep-gray: #334155;
-  --color-background-base: #FDFCFB;
+  --color-earth-brown: #5C4A42;
+  --color-deep-blue: #3D3637;
+  --color-deep-gray: #C4B8B0;
+  --color-background-base: #FDF8F5;
   --color-accent-terracotta: #D97706;
   --color-accent-sage: #65A30D;
   --color-accent-lavender: #7C3AED;
-  --color-background-light: #f7f6f8;
-  --color-background-dark: #17141e;
-  
+  --color-background-light: #FAF5F2;
+  --color-background-dark: #3D3637;
+  --color-warm-charcoal: #3D3637;
+  --color-warm-stone: #C4B8B0;
+  --color-warm-taupe: #9B8B7E;
+
   /* Fonts */
-  --font-display: "Montserrat", sans-serif;
-  --font-body: "Inter", sans-serif;
+  --font-display: "Quicksand", "Nunito", sans-serif;
+  --font-body: "Source Sans 3", sans-serif;
 }
 
 :root {
@@ -163,9 +166,9 @@ code {
   }
   
   .grid-bg {
-    background-image: 
-      linear-gradient(to right, rgba(99, 102, 241, 0.03) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+    background-image:
+      linear-gradient(to right, rgba(156, 139, 126, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(156, 139, 126, 0.04) 1px, transparent 1px);
     background-size: 60px 60px;
   }
   
@@ -178,23 +181,23 @@ code {
     font-size: 0.875rem;
     font-weight: 600;
     text-align: center;
-    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     cursor: default;
-    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.05);
+    box-shadow: 0 10px 30px -10px rgba(92, 74, 66, 0.08);
     backdrop-blur: 4px;
   }
-  
+
   .orb:hover {
     transform: scale(1.08) translateY(-8px);
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1);
+    box-shadow: 0 25px 50px -12px rgba(92, 74, 66, 0.12);
   }
-  
+
   .orb-label {
     position: absolute;
     white-space: nowrap;
     pointer-events: none;
-    color: #45322E;
-    font-family: "Montserrat", sans-serif;
+    color: #5C4A42;
+    font-family: "Quicksand", sans-serif;
     font-weight: 700;
   }
   

@@ -44,11 +44,11 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
 
   return (
     <div className="fixed inset-0 z-[70]">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-[#3D3637]/40 backdrop-blur-sm" />
 
       <div className="absolute inset-0 flex">
         {/* Chat */}
-        <div className="w-[420px] max-w-[90vw] h-full bg-slate-950/85 border-r border-white/10 flex flex-col">
+        <div className="w-[420px] max-w-[90vw] h-full bg-[#3D3637]/90 border-r border-white/10 flex flex-col">
           <div className="p-4 flex items-center justify-between border-b border-white/10">
             <div className="min-w-0">
               <div className="text-xs text-white/60">Direct message</div>
@@ -99,8 +99,8 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
                     className={`flex ${isMine ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                        isMine ? "bg-white text-slate-900" : "bg-white/10 text-white"
+                      className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+                        isMine ? "bg-[#FAF5F2] text-[#3D3637]" : "bg-white/10 text-white"
                       }`}
                     >
                       <div className="text-[11px] opacity-70 mb-1">
@@ -128,7 +128,7 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
             <Button
               onClick={handleSend}
               disabled={isSending || !draft.trim()}
-              className="bg-white text-slate-900 hover:bg-white/90"
+              className="bg-[#FAF5F2] text-[#3D3637] hover:bg-[#FAF5F2]/90"
             >
               Send
             </Button>
@@ -136,7 +136,7 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
         </div>
 
         {/* Context area */}
-        <div className="flex-1 bg-gray-300" />
+        <div className="flex-1 bg-[#FDF8F5]" />
       </div>
     </div>
   );

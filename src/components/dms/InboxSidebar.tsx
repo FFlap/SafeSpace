@@ -74,7 +74,7 @@ export function InboxSidebar({
     >
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/35 backdrop-blur-sm transition-opacity ${
+        className={`absolute inset-0 bg-[#3D3637]/35 backdrop-blur-sm transition-opacity ${
           open ? "opacity-100" : "opacity-0"
         }`}
         onClick={onClose}
@@ -82,7 +82,7 @@ export function InboxSidebar({
 
       {/* Panel */}
       <div
-        className={`absolute right-0 top-0 bottom-0 w-[420px] max-w-[92vw] bg-slate-950/90 border-l border-white/10 shadow-2xl transition-transform ${
+        className={`absolute right-0 top-0 bottom-0 w-[420px] max-w-[92vw] bg-[#3D3637]/95 border-l border-white/10 shadow-2xl transition-transform ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -137,7 +137,7 @@ export function InboxSidebar({
                           <div className="flex items-center gap-2 shrink-0">
                             <Button
                               size="sm"
-                              className="bg-white text-slate-900 hover:bg-white/90"
+                              className="bg-[#FAF5F2] text-[#3D3637] hover:bg-[#FAF5F2]/90"
                               disabled={isResponding === r._id}
                               onClick={async () => {
                                 setIsResponding(r._id);
@@ -356,8 +356,8 @@ function InboxConversationView({
             return (
               <div key={m._id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                    isMine ? "bg-white text-slate-900" : "bg-white/10 text-white"
+                  className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+                    isMine ? "bg-[#FAF5F2] text-[#3D3637]" : "bg-white/10 text-white"
                   }`}
                 >
                   <div className="text-[11px] opacity-70 mb-1">
@@ -386,7 +386,7 @@ function InboxConversationView({
         <Button
           onClick={handleSend}
           disabled={isSending || !draft.trim()}
-          className="bg-white text-slate-900 hover:bg-white/90"
+          className="bg-[#FAF5F2] text-[#3D3637] hover:bg-[#FAF5F2]/90"
         >
           Send
         </Button>

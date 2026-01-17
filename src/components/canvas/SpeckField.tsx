@@ -125,13 +125,13 @@ function drawSpeechBubble(
   ctx.quadraticCurveTo(bx, by, bx + radius, by);
   ctx.closePath();
 
-  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+  ctx.fillStyle = "rgba(253, 248, 245, 0.95)";
   ctx.fill();
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
+  ctx.strokeStyle = "rgba(156, 139, 126, 0.25)";
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+  ctx.fillStyle = "rgba(92, 74, 66, 0.92)";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(t, x, by + bubbleHeight / 2 + 1);
@@ -272,10 +272,8 @@ export function SpeckField({
       ctx.stroke();
     };
 
-    if (minorScreen >= 18) {
-      drawGrid(minorSpacing, "rgba(15, 23, 42, 0.06)");
-    }
-    drawGrid(majorSpacing, "rgba(15, 23, 42, 0.10)");
+    const gridSpacing = minorScreen >= 18 ? minorSpacing : majorSpacing;
+    drawGrid(gridSpacing, "rgba(15, 23, 42, 0.03)");
 
     const bubbleCenter = worldToScreen(0, 0, renderWidth, renderHeight);
     const bubbleScreenRadius = bubbleRadius * camera.zoom;
@@ -332,7 +330,7 @@ export function SpeckField({
       const baseSize = 4;
       const size = baseSize * camera.zoom;
 
-      const fillColor = isInSameThread ? "#ffffff" : "#9ca3af";
+      const fillColor = isInSameThread ? "#FAF5F2" : "#C4B8B0";
 
       // Draw speck
       ctx.beginPath();
@@ -343,7 +341,7 @@ export function SpeckField({
       ctx.beginPath();
       ctx.arc(screenPos.x, screenPos.y, size, 0, Math.PI * 2);
       ctx.strokeStyle =
-        fillColor === "#ffffff" ? "rgba(15, 23, 42, 0.25)" : "rgba(15, 23, 42, 0.18)";
+        fillColor === "#FAF5F2" ? "rgba(92, 74, 66, 0.25)" : "rgba(92, 74, 66, 0.18)";
       ctx.lineWidth = 1;
       ctx.stroke();
     });
@@ -355,18 +353,18 @@ export function SpeckField({
 
       ctx.beginPath();
       ctx.arc(centerSpeck.x, centerSpeck.y, size, 0, Math.PI * 2);
-      ctx.fillStyle = "#ffffff";
+      ctx.fillStyle = "#FAF5F2";
       ctx.fill();
 
       ctx.beginPath();
       ctx.arc(centerSpeck.x, centerSpeck.y, size, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(15, 23, 42, 0.25)";
+      ctx.strokeStyle = "rgba(92, 74, 66, 0.25)";
       ctx.lineWidth = 1;
       ctx.stroke();
 
       ctx.beginPath();
       ctx.arc(centerSpeck.x, centerSpeck.y, size + 2, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+      ctx.strokeStyle = "rgba(253, 248, 245, 0.5)";
       ctx.lineWidth = 2;
       ctx.stroke();
     }

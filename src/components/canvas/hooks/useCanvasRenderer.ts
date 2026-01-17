@@ -155,10 +155,8 @@ export function useCanvasRenderer({
       ctx.stroke();
     };
 
-    if (minorScreen >= 18) {
-      drawGrid(minorSpacing, "rgba(15, 23, 42, 0.06)");
-    }
-    drawGrid(majorSpacing, "rgba(15, 23, 42, 0.10)");
+    const gridSpacing = minorScreen >= 18 ? minorSpacing : majorSpacing;
+    drawGrid(gridSpacing, "rgba(15, 23, 42, 0.03)");
 
     // Draw bubbles
     for (const space of spaces) {
@@ -178,13 +176,13 @@ export function useCanvasRenderer({
       const rgb = hexToRgb(space.color);
       if (!rgb) continue;
 
-      const calm = mixWithWhite(rgb, 0.9);
+      const calm = mixWithWhite(rgb, 0.92);
       const border = mixWithBlack(calm, 0.08);
 
       ctx.beginPath();
       ctx.arc(sx, sy, sr, 0, Math.PI * 2);
       ctx.save();
-      ctx.shadowColor = "rgba(15, 23, 42, 0.12)";
+      ctx.shadowColor = "rgba(92, 74, 66, 0.10)";
       ctx.shadowBlur = Math.max(6, Math.min(18, 12 * camera.zoom));
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = Math.max(2, Math.min(10, 6 * camera.zoom));
@@ -199,11 +197,11 @@ export function useCanvasRenderer({
 
       // Draw name label
       const fontSize = Math.max(12, 14 * camera.zoom);
-      ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      ctx.font = `600 ${fontSize}px "Quicksand", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       ctx.save();
-      ctx.shadowColor = "rgba(255, 255, 255, 0.9)";
+      ctx.shadowColor = "rgba(253, 248, 245, 0.9)";
       ctx.shadowBlur = 6;
-      ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+      ctx.fillStyle = "rgba(92, 74, 66, 0.9)";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(space.name, sx, sy);
@@ -212,8 +210,8 @@ export function useCanvasRenderer({
       // Draw user count if > 0
       if (space.activeUserCount > 0) {
         const countFontSize = Math.max(10, 11 * camera.zoom);
-        ctx.font = `500 ${countFontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
-        ctx.fillStyle = "rgba(15, 23, 42, 0.6)";
+        ctx.font = `500 ${countFontSize}px "Source Sans 3", -apple-system, BlinkMacSystemFont, sans-serif`;
+        ctx.fillStyle = "rgba(92, 74, 66, 0.6)";
         ctx.fillText(`${space.activeUserCount} active`, sx, sy + fontSize);
       }
     }

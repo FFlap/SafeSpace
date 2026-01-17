@@ -144,8 +144,8 @@ function FieldPage() {
   // Loading state
   if (spacesLoading) {
     return (
-      <div className="h-screen w-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-slate-400 text-lg">Loading spaces...</div>
+      <div className="h-screen w-screen bg-[#3D3637] flex items-center justify-center">
+        <div className="text-[#C4B8B0] text-lg">Loading spaces...</div>
       </div>
     );
   }
@@ -153,12 +153,12 @@ function FieldPage() {
   return (
     <div className="h-screen w-screen overflow-hidden relative">
       <SignedOut>
-        <div className="absolute inset-0 bg-slate-900/90 backdrop-blur flex items-center justify-center z-50">
+        <div className="absolute inset-0 bg-[#3D3637]/90 backdrop-blur flex items-center justify-center z-50">
           <div className="text-center space-y-6">
             <h2 className="text-2xl font-bold text-white">Welcome to Bubble Spaces</h2>
-            <p className="text-slate-400">Sign in to join the conversation</p>
+            <p className="text-[#C4B8B0]">Sign in to join the conversation</p>
             <SignInButton mode="modal">
-              <button className="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-lg font-medium text-white transition-colors">
+              <button className="bg-[#9B8B7E] hover:bg-[#8A7A6E] px-6 py-3 rounded-xl font-medium text-white transition-colors">
                 Sign In
               </button>
             </SignInButton>
@@ -168,14 +168,14 @@ function FieldPage() {
 
       <SignedIn>
         {/* Header */}
-        <div className="fixed top-0 left-0 right-0 z-[200] h-16 px-4 flex items-center justify-between bg-slate-950 border-b border-slate-800/80 pointer-events-none">
+        <div className="fixed top-0 left-0 right-0 z-[200] h-16 px-4 flex items-center justify-between bg-[#3D3637]/95 border-b border-[#C4B8B0]/20 pointer-events-none">
           <button
             onClick={() => navigate({ to: "/" })}
-            className="text-xl font-bold text-white hover:text-indigo-400 transition-colors pointer-events-auto"
+            className="text-xl font-bold text-white hover:text-[#C4B8B0] transition-colors pointer-events-auto"
           >
             HackTheBias
           </button>
-          <div className="text-slate-400 text-sm pointer-events-auto hidden md:block">
+          <div className="text-[#C4B8B0] text-sm pointer-events-auto hidden md:block">
             Use WASD or arrows to pan, +/- to zoom
           </div>
           <div className="pointer-events-auto">
@@ -239,8 +239,8 @@ function FieldPage() {
         {spaces.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center space-y-2">
-              <p className="text-slate-400 text-lg">No spaces yet</p>
-              <p className="text-slate-500 text-sm">
+              <p className="text-[#9B8B7E] text-lg">No spaces yet</p>
+              <p className="text-[#C4B8B0] text-sm">
                 Run the seed action to populate spaces
               </p>
             </div>
