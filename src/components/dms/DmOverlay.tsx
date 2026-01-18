@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, EyeOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,18 +25,119 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
   const { shareName } = useDmNameConsent(conversationId, currentUserId);
   const { sendDmMessage, setDmNameConsent } = useDmMutations();
 
+  const [optimisticMessages, setOptimisticMessages] = useState<
+    Array<{
+      _id: string;
+      conversationId: Id<"dmConversations">;
+      senderId: Id<"users">;
+      body: string;
+      createdAt: number;
+      displayName?: string | null;
+    }>
+  >([]);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isTogglingName, setIsTogglingName] = useState(false);
+  const [moderationWarning, setModerationWarning] = useState<string | null>(null);
+  // Track message IDs we've sent to detect AI moderation deletions
+  const sentMessageIdsRef = useRef<Set<string>>(new Set());
+  const seenMessageIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    setOptimisticMessages([]);
+    setModerationWarning(null);
+    sentMessageIdsRef.current.clear();
+    seenMessageIdsRef.current.clear();
+  }, [conversationId]);
+
+  const displayMessages = useMemo(() => {
+    // Filter out optimistic messages that have a matching real message (same user, body, similar time)
+    const optimistic = optimisticMessages.filter((o) => {
+      const hasMatch = messages.some(
+        (m) =>
+          m.senderId === o.senderId &&
+          m.body === o.body &&
+          Math.abs(m.createdAt - o.createdAt) < 5000
+      );
+      return !hasMatch;
+    });
+    return [...messages, ...optimistic].sort((a, b) => a.createdAt - b.createdAt);
+  }, [messages, optimisticMessages]);
+
+  useEffect(() => {
+    const serverIds = new Set(messages.map((m) => m._id));
+
+    // Detect AI moderation: a sent message we saw before is now gone
+    for (const id of sentMessageIdsRef.current) {
+      if (seenMessageIdsRef.current.has(id) && !serverIds.has(id as any)) {
+        // Message was seen but now deleted - AI moderation
+        setModerationWarning(
+          "Your message was removed because it violates our community guidelines."
+        );
+        sentMessageIdsRef.current.delete(id);
+        seenMessageIdsRef.current.delete(id);
+        break;
+      }
+      if (serverIds.has(id as any)) {
+        seenMessageIdsRef.current.add(id);
+      }
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (!moderationWarning) return;
+    const id = window.setTimeout(() => setModerationWarning(null), 6000);
+    return () => window.clearTimeout(id);
+  }, [moderationWarning]);
+
+  const makePendingId = () => {
+    const randomPart =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? (crypto as any).randomUUID()
+        : Math.random().toString(16).slice(2);
+    return `pending-${Date.now()}-${randomPart}`;
+  };
 
   const handleSend = async () => {
     const body = draft.trim();
     if (!body) return;
 
+    const optimisticId = makePendingId();
+    const optimisticCreatedAt = Date.now();
+
     setDraft("");
     setIsSending(true);
+
+    // Show message immediately (optimistic update)
+    setOptimisticMessages((prev) => [
+      ...prev,
+      {
+        _id: optimisticId,
+        conversationId,
+        senderId: currentUserId,
+        body,
+        createdAt: optimisticCreatedAt,
+        displayName: null,
+      },
+    ]);
+
     try {
-      await sendDmMessage({ conversationId, userId: currentUserId, body });
+      const res = await sendDmMessage({ conversationId, userId: currentUserId, body });
+      if ((res as any)?.status === "blocked") {
+        // Remove optimistic message and show warning
+        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
+        setModerationWarning((res as any)?.warning ?? "Message blocked.");
+      } else {
+        // Message sent - track the ID to detect AI moderation deletions
+        const messageId = (res as any)?.messageId;
+        if (messageId) {
+          sentMessageIdsRef.current.add(messageId);
+        }
+        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
+      }
+    } catch {
+      setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
+      setModerationWarning("Message failed to send.");
     } finally {
       setIsSending(false);
     }
@@ -91,7 +192,7 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
 
           <ScrollArea className="flex-1 p-4">
             <div className="space-y-3">
-              {messages.map((m) => {
+              {displayMessages.map((m) => {
                 const isMine = m.senderId === currentUserId;
                 return (
                   <div
@@ -115,23 +216,28 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
             </div>
           </ScrollArea>
 
-          <div className="p-4 border-t border-white/10 flex gap-2">
-            <Input
-              value={draft}
-              placeholder="Say something..."
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSend();
-              }}
-              className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
-            />
-            <Button
-              onClick={handleSend}
-              disabled={isSending || !draft.trim()}
-              className="bg-[#FAF5F2] text-[#3D3637] hover:bg-[#FAF5F2]/90"
-            >
-              Send
-            </Button>
+          <div className="border-t border-white/10">
+            {moderationWarning && (
+              <div className="px-4 pt-3 text-xs text-red-200">{moderationWarning}</div>
+            )}
+            <div className="p-4 flex gap-2">
+              <Input
+                value={draft}
+                placeholder="Say something..."
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSend();
+                }}
+                className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+              />
+              <Button
+                onClick={handleSend}
+                disabled={isSending || !draft.trim()}
+                className="bg-[#FAF5F2] text-[#3D3637] hover:bg-[#FAF5F2]/90"
+              >
+                Send
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -141,4 +247,3 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
     </div>
   );
 }
-
