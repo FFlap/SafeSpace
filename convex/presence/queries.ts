@@ -40,12 +40,11 @@ export const listActivePresenceCounts = query({
 
     const counts = new Map<string, number>();
     for (const p of presence) {
-      const spaceId = p.spaceId as unknown as string;
-      counts.set(spaceId, (counts.get(spaceId) ?? 0) + 1);
+      counts.set(p.spaceId, (counts.get(p.spaceId) ?? 0) + 1);
     }
 
     return Array.from(counts, ([spaceId, activeUserCount]) => ({
-      spaceId: spaceId as any,
+      spaceId,
       activeUserCount,
     }));
   },
@@ -58,26 +57,5 @@ export const getMyPresence = query({
       .query("spacePresence")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .first();
-  },
-});
-
-export const listActivePresenceCounts = query({
-  args: {},
-  handler: async (ctx) => {
-    const now = Date.now();
-    const thirtySecondsAgo = now - 30000;
-
-    const activePresence = await ctx.db
-      .query("spacePresence")
-      .filter((q) => q.gt(q.field("lastSeen"), thirtySecondsAgo))
-      .collect();
-
-    const counts: Record<string, number> = {};
-    for (const presence of activePresence) {
-      const spaceId = presence.spaceId;
-      counts[spaceId] = (counts[spaceId] ?? 0) + 1;
-    }
-
-    return counts;
   },
 });

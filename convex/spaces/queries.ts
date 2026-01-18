@@ -22,13 +22,6 @@ export const getSpace = query({
   },
 });
 
-export const listSpaces = query({
-  args: {},
-  handler: async (ctx) => {
-    return await ctx.db.query("spaces").collect();
-  },
-});
-
 export const getSpaceLinks = query({
   args: { spaceId: v.id("spaces") },
   handler: async (ctx, args) => {
