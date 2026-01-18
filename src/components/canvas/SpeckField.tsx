@@ -561,6 +561,7 @@ export function SpeckField({
         ctx.beginPath();
         ctx.arc(currentUserScreen.x, currentUserScreen.y, size + 2, 0, Math.PI * 2);
         ctx.strokeStyle = "rgba(253, 248, 245, 0.5)";
+
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -599,6 +600,7 @@ export function SpeckField({
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
+
     };
   }, [
     presence,

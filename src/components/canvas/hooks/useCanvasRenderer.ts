@@ -160,6 +160,7 @@ export function useCanvasRenderer({
     const anchorStrength = 0.06;
     const iterations = 60;
 
+
     for (let iter = 0; iter < iterations; iter++) {
       for (let i = 0; i < spaces.length; i++) {
         for (let j = i + 1; j < spaces.length; j++) {
@@ -177,6 +178,7 @@ export function useCanvasRenderer({
             dy = 0;
           }
 
+
           const minDistance =
             getBubbleRadius(spaceA.activeUserCount) +
             getBubbleRadius(spaceB.activeUserCount) +
@@ -191,6 +193,7 @@ export function useCanvasRenderer({
             posB.x += ux * overlap;
             posB.y += uy * overlap;
           }
+
         }
       }
 
