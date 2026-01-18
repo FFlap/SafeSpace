@@ -27,6 +27,8 @@ import type * as presence_internalQueries from "../presence/internalQueries.js";
 import type * as presence_mutations from "../presence/mutations.js";
 import type * as presence_queries from "../presence/queries.js";
 import type * as seed_actions from "../seed/actions.js";
+import type * as seed_dummyData from "../seed/dummyData.js";
+import type * as seed_mutations from "../seed/mutations.js";
 import type * as spaces_actions from "../spaces/actions.js";
 import type * as spaces_internalQueries from "../spaces/internalQueries.js";
 import type * as spaces_mutations from "../spaces/mutations.js";
@@ -61,6 +63,8 @@ declare const fullApi: ApiFromModules<{
   "presence/mutations": typeof presence_mutations;
   "presence/queries": typeof presence_queries;
   "seed/actions": typeof seed_actions;
+  "seed/dummyData": typeof seed_dummyData;
+  "seed/mutations": typeof seed_mutations;
   "spaces/actions": typeof spaces_actions;
   "spaces/internalQueries": typeof spaces_internalQueries;
   "spaces/mutations": typeof spaces_mutations;
