@@ -82,7 +82,10 @@ export function useKeyboardNav({
       if (!enabled) return;
       if (shouldIgnoreEvent(e)) return;
 
-      switch (e.key.toLowerCase()) {
+      const key = e.key;
+      if (!key) return;
+
+      switch (key.toLowerCase()) {
         case "w":
         case "arrowup":
           e.preventDefault();
@@ -132,7 +135,10 @@ export function useKeyboardNav({
       if (!enabled) return;
       if (shouldIgnoreEvent(e)) return;
 
-      switch (e.key.toLowerCase()) {
+      const key = e.key;
+      if (!key) return;
+
+      switch (key.toLowerCase()) {
         case "w":
         case "arrowup":
           keysRef.current.up = false;

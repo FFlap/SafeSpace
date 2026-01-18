@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SpeckField } from "@/components/canvas/SpeckField";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { ThreadOverlay } from "@/components/threads/ThreadOverlay";
 import { ThreadSidebar } from "@/components/threads/ThreadSidebar";
 import { useThreadMessages } from "@/hooks/useThreadMessages";
@@ -56,7 +48,8 @@ interface PresenceUser {
 
 interface Thread {
   _id: Id<"spaceThreads">;
-  name: string;
+  description?: string;
+  name?: string; // Deprecated: for backwards compatibility
   memberCount: number;
   lastActiveAt: number;
 }
@@ -68,11 +61,10 @@ interface SpaceOverlayProps {
   presence: PresenceUser[];
   currentUserId: Id<"users"> | null;
   currentThreadId: Id<"spaceThreads"> | null;
-  memberThreadIds: Set<string>;
   onClose: () => void;
   onCloseThread: () => void;
-  onCreateThread: (name: string) => void;
-  onJoinThread: (threadId: Id<"spaceThreads">) => void;
+  onCreateThread: (description: string) => void;
+  onThreadClick: (threadId: Id<"spaceThreads">) => void;
   onLeaveThread: (threadId: Id<"spaceThreads">) => void;
   onRequestDm?: (userId: Id<"users">) => void;
   onCurrentUserPositionChange?: (pos: { x: number; y: number }) => void;
@@ -85,11 +77,10 @@ export function SpaceOverlay({
   presence,
   currentUserId,
   currentThreadId,
-  memberThreadIds,
   onClose,
   onCloseThread,
   onCreateThread,
-  onJoinThread,
+  onThreadClick,
   onLeaveThread,
   onRequestDm,
   onCurrentUserPositionChange,
@@ -104,9 +95,6 @@ export function SpaceOverlay({
     const rgb = hexToRgb(spaceColor);
     return rgb ? rgbToHex(mixWithWhite(rgb, 0.9)) : spaceColor;
   }, [spaceColor]);
-
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [newThreadName, setNewThreadName] = useState("");
   const [threadJoinedAt, setThreadJoinedAt] = useState<number>(Date.now());
   const [currentUserPosition, setCurrentUserPosition] = useState<{ x: number; y: number }>({
     x: 0,
@@ -251,10 +239,8 @@ export function SpaceOverlay({
       <div className="absolute left-0 top-16 bottom-0 w-[300px] z-20 pointer-events-auto">
         <ThreadSidebar
           threads={threads}
-          memberThreadIds={memberThreadIds}
           onCreateThread={onCreateThread}
-          onJoinThread={onJoinThread}
-          onLeaveThread={onLeaveThread}
+          onThreadClick={onThreadClick}
         />
       </div>
 
@@ -270,60 +256,6 @@ export function SpaceOverlay({
           </div>
 
           <div className="flex items-center gap-2">
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="bg-[#3D3637]/85 backdrop-blur-md border border-white/10 text-white/90 hover:text-white hover:bg-[#3D3637]/95 shadow-sm"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  New thread
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-[#3D3637] border-white/10">
-                <DialogHeader>
-                  <DialogTitle className="text-white">Create a thread</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <Input
-                    placeholder="Thread name..."
-                    value={newThreadName}
-                    onChange={(e) => setNewThreadName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && newThreadName.trim()) {
-                        onCreateThread(newThreadName.trim());
-                        setNewThreadName("");
-                        setCreateDialogOpen(false);
-                      }
-                    }}
-                    className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      onClick={() => setCreateDialogOpen(false)}
-                      className="text-white/70 hover:text-white hover:bg-white/10"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        if (!newThreadName.trim()) return;
-                        onCreateThread(newThreadName.trim());
-                        setNewThreadName("");
-                        setCreateDialogOpen(false);
-                      }}
-                      disabled={!newThreadName.trim()}
-                      className="bg-white text-slate-900 hover:bg-white/90"
-                    >
-                      Create
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
             <Button
               variant="ghost"
               size="sm"
@@ -357,7 +289,7 @@ export function SpaceOverlay({
       {currentThreadId && (
         <ThreadOverlay
           threadId={currentThreadId}
-          threadName={currentThread?.name ?? "Thread"}
+          threadDescription={currentThread?.description ?? currentThread?.name ?? "Thread"}
           presence={presence}
           currentUserId={currentUserId}
           joinedAt={threadJoinedAt}
