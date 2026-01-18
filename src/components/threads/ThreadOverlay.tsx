@@ -559,8 +559,8 @@ export function ThreadOverlay({
 
       <div className="absolute left-0 right-0 bottom-0 top-16 flex">
         {/* Chat */}
-        <div className="w-[300px] h-full bg-[#3D3637]/90 border-r border-white/10 flex flex-col">
-          <div className="p-3 border-b border-white/10 flex flex-col max-h-[40vh]">
+        <div className="w-[300px] min-w-0 h-full overflow-x-hidden bg-[#3D3637]/90 border-r border-white/10 flex flex-col">
+          <div className="p-3 border-b border-white/10 flex flex-col max-h-[40vh] min-w-0">
             <div className="flex items-center justify-between mb-2 flex-shrink-0">
               <div className="text-xs text-white/60">Talk</div>
               <Button
@@ -572,8 +572,10 @@ export function ThreadOverlay({
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            <div className="text-sm font-medium text-white mb-3 overflow-y-auto flex-1 min-h-0">{threadDescription}</div>
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="text-sm font-medium text-white mb-3 overflow-y-auto overflow-x-hidden flex-1 min-h-0 min-w-0 break-words">
+              {threadDescription}
+            </div>
+            <div className="flex flex-wrap items-center gap-1 flex-shrink-0 min-w-0">
               <Button
                 variant="ghost"
                 size="sm"

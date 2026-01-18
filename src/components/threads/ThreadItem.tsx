@@ -31,11 +31,11 @@ export function ThreadItem({
 }: ThreadItemProps) {
   return (
     <div
-      className="p-3 rounded-2xl bg-white/5 hover:bg-white/12 border border-white/5 hover:border-white/15 transition-colors cursor-pointer min-w-0 w-full"
+      className="p-3 rounded-2xl bg-white/5 hover:bg-white/12 border border-white/5 hover:border-white/15 transition-colors cursor-pointer min-w-0 w-full grid grid-cols-1 gap-1"
       onClick={() => onClick(thread._id)}
     >
-      <h4 className="text-sm font-medium text-white overflow-hidden text-ellipsis whitespace-nowrap">{thread.description ?? thread.name}</h4>
-      <div className="flex items-center gap-2 mt-1">
+      <h4 className="text-sm font-medium text-white overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{thread.description ?? thread.name}</h4>
+      <div className="flex items-center gap-2">
         <span className="flex items-center gap-1 text-xs text-white/60 flex-shrink-0">
           <Users className="w-3 h-3" />
           {thread.memberCount}

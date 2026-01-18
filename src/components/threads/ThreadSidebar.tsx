@@ -101,8 +101,8 @@ export function ThreadSidebar({
 
       <Separator className="bg-white/10" />
 
-      <ScrollArea className="flex-1 min-h-0 px-4 py-2 backdrop-blur">
-        <div className="w-full min-w-0">
+      <ScrollArea className="flex-1 min-h-0 backdrop-blur">
+        <div className="w-full min-w-0 px-4 py-2">
           <ThreadList
             threads={threads}
             onThreadClick={onThreadClick}
