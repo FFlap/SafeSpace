@@ -1,6 +1,6 @@
 "use node";
 
-import { internalAction } from "../_generated/server";
+import { action, internalAction } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { v } from "convex/values";
 import natural from "natural";
@@ -183,5 +183,39 @@ export const checkSimilarSpaceExists = internalAction({
       exists: similarSpaces.length > 0,
       similarSpaces: similarSpaces.sort((a, b) => b.similarity - a.similarity),
     };
+  },
+});
+
+export const createSpaceAndRecluster = action({
+  args: {
+    name: v.string(),
+    tags: v.array(v.string()),
+    color: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ spaceId: string }> => {
+    const spaces = await ctx.runQuery(internal.spaces.internalQueries.getAllSpaces);
+    const normalized = args.name.trim().toLowerCase();
+    const existing = spaces.find(
+      (space: { _id: string; name: string }) => space.name.trim().toLowerCase() === normalized
+    );
+
+    if (existing) {
+      return { spaceId: existing._id };
+    }
+
+    const spaceId = await ctx.runMutation(internal.spaces.mutations.internalCreateSpace, {
+      name: args.name,
+      tags: args.tags,
+      color: args.color,
+      tfidfVector: [],
+      position: { x: 0, y: 0 },
+    });
+
+    await ctx.runAction(internal.spaces.actions.computeTfidfVectors);
+    await ctx.runAction(internal.spaces.actions.computeAllSimilarities, {});
+    await ctx.runAction(internal.clustering.actions.computeClusters);
+    await ctx.runAction(internal.clustering.actions.computeLayout);
+
+    return { spaceId };
   },
 });

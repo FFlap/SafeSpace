@@ -17,7 +17,7 @@ export function BubbleField({
   overlayOpen = false,
   onEscape,
 }: BubbleFieldProps) {
-  const { camera, pan, zoomBy } = useCamera();
+  const { camera, pan, zoomBy } = useCamera({ zoom: 0.45 });
   const [isDragging, setIsDragging] = useState(false);
   const [hoveredSpaceId, setHoveredSpaceId] = useState<string | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -26,6 +26,7 @@ export function BubbleField({
     camera,
     spaces,
     onSpaceClick,
+    hoveredSpaceId,
   });
 
   useDisableBrowserZoom(true);

@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/clerk-react";
 import { Inbox } from "lucide-react";
+import { useAction } from "convex/react";
 import { BubbleField } from "@/components/canvas/BubbleField";
 import { SpaceOverlay } from "@/components/space/SpaceOverlay";
 import { InboxSidebar } from "@/components/dms/InboxSidebar";
@@ -11,6 +12,7 @@ import { useThreads, useMyThreadMemberships, useThreadMutations } from "@/hooks/
 import { usePresence, useSpacePresence } from "@/hooks/usePresence";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useDmMutations, useIncomingDmRequests } from "@/hooks/useDirectMessages";
+import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
 export const Route = createFileRoute("/field")({
@@ -21,6 +23,10 @@ function FieldPage() {
   const navigate = useNavigate();
   const { spaces, isLoading: spacesLoading } = useSpaces();
   const { user } = useCurrentUser();
+  const createSpaceAndRecluster = useAction(api.spaces.actions.createSpaceAndRecluster);
+  const [spaceSearch, setSpaceSearch] = useState("");
+  const [showResults, setShowResults] = useState(false);
+  const [activeResultIndex, setActiveResultIndex] = useState(0);
 
   const [selectedSpaceId, setSelectedSpaceId] = useState<Id<"spaces"> | null>(null);
   const [currentThreadId, setCurrentThreadId] = useState<Id<"spaceThreads"> | null>(null);
@@ -117,6 +123,66 @@ function FieldPage() {
   const handleCloseInbox = useCallback(() => setInboxOpen(false), []);
   const handleBackToInbox = useCallback(() => setActiveDmConversationId(null), []);
 
+  const normalizedSearch = spaceSearch.trim().toLowerCase();
+  const exactMatch = normalizedSearch
+    ? spaces.find((space) => space.name.trim().toLowerCase() === normalizedSearch)
+    : null;
+
+  const matches = normalizedSearch
+    ? spaces
+        .filter((space) =>
+          space.name.trim().toLowerCase().includes(normalizedSearch)
+        )
+        .slice(0, 5)
+    : [];
+
+  const resultsCount = matches.length + (normalizedSearch && !exactMatch ? 1 : 0);
+
+  const tagsFromName = useCallback((name: string) => {
+    const tokens = name
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 2);
+
+    return Array.from(new Set(tokens));
+  }, []);
+
+  const handleCreateSpace = useCallback(async () => {
+    if (!normalizedSearch || exactMatch) return;
+
+    const res = await createSpaceAndRecluster({
+      name: spaceSearch.trim(),
+      tags: tagsFromName(spaceSearch),
+      color: "#9B8B7E",
+    });
+
+    setSpaceSearch("");
+    setShowResults(false);
+    setActiveResultIndex(0);
+    handleSpaceClick(res.spaceId);
+  }, [
+    normalizedSearch,
+    exactMatch,
+    createSpaceAndRecluster,
+    spaceSearch,
+    tagsFromName,
+    handleSpaceClick,
+  ]);
+
+  useEffect(() => {
+    setActiveResultIndex(0);
+  }, [normalizedSearch]);
+
+  const handleSelectSpace = useCallback(
+    (spaceId: string) => {
+      setSpaceSearch("");
+      setShowResults(false);
+      handleSpaceClick(spaceId);
+    },
+    [handleSpaceClick]
+  );
+
   const handleOpenDmConversation = useCallback((conversationId: Id<"dmConversations">) => {
     setActiveDmConversationId(conversationId);
     setInboxOpen(true);
@@ -198,6 +264,84 @@ function FieldPage() {
           overlayOpen={!!selectedSpaceId}
           onEscape={handleCloseOverlay}
         />
+
+        {!selectedSpaceId && (
+          <div className="fixed bottom-6 left-1/2 z-[150] w-[min(420px,90vw)] -translate-x-1/2">
+            <div
+              onMouseDown={(e) => e.preventDefault()}
+              className={`absolute bottom-12 left-0 right-0 space-y-2 rounded-2xl border border-white/10 bg-[#3D3637]/40 backdrop-blur-xl px-3 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.25)] transition-all duration-200 ${
+                showResults && (matches.length > 0 || (normalizedSearch && !exactMatch))
+                  ? "opacity-100 translate-y-0"
+                  : "pointer-events-none opacity-0 translate-y-2"
+              }`}
+            >
+              {matches.map((space, index) => (
+                <button
+                  key={space._id}
+                  type="button"
+                  onClick={() => handleSelectSpace(space._id)}
+                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm text-white transition ${
+                    activeResultIndex === index
+                      ? "border-white/30 bg-white/20"
+                      : "border-white/5 bg-white/5 hover:bg-white/10"
+                  }`}
+                >
+                  <span className="truncate">{space.name}</span>
+                  <span className="text-xs text-white/50">Enter</span>
+                </button>
+              ))}
+              {normalizedSearch && !exactMatch && (
+                <button
+                  type="button"
+                  onClick={handleCreateSpace}
+                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm text-white transition ${
+                    activeResultIndex === matches.length
+                      ? "border-white/40 bg-white/20"
+                      : "border-white/10 bg-white/10 hover:bg-white/20"
+                  }`}
+                >
+                  <span className="truncate">Create “{spaceSearch.trim()}”</span>
+                  <span className="text-xs text-white/50">New Space</span>
+                </button>
+              )}
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 rounded-full bg-white/10 blur-md" />
+              <input
+                value={spaceSearch}
+                onChange={(e) => {
+                  setSpaceSearch(e.target.value);
+                  setShowResults(true);
+                }}
+                onFocus={() => setShowResults(true)}
+                onBlur={() => setTimeout(() => setShowResults(false), 120)}
+                onKeyDown={(e) => {
+                  if (resultsCount === 0) return;
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setActiveResultIndex((prev) => (prev + 1) % resultsCount);
+                  }
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setActiveResultIndex((prev) =>
+                      (prev - 1 + resultsCount) % resultsCount
+                    );
+                  }
+                  if (e.key === "Enter") {
+                    if (activeResultIndex < matches.length) {
+                      handleSelectSpace(matches[activeResultIndex]._id);
+                    } else {
+                      void handleCreateSpace();
+                    }
+                  }
+                }}
+                placeholder="Search spaces..."
+                className="relative w-full rounded-full border border-white/10 bg-[#3D3637]/50 px-4 py-2 text-sm text-white placeholder:text-white/50 backdrop-blur-xl outline-none transition focus:border-white/30"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Space Overlay */}
         {selectedSpaceId && selectedSpace && (

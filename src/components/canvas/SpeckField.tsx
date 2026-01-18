@@ -37,10 +37,10 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
-      }
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16),
+    }
     : null;
 }
 
@@ -337,7 +337,7 @@ export function SpeckField({
     },
   });
 
-  // Render specks on canvas
+  // Render specks on canvas with animation loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -346,201 +346,262 @@ export function SpeckField({
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const renderWidth = dimensions.width;
-    const renderHeight = dimensions.height;
+    let animationFrameId: number;
 
-    const snapshotNow = performance.now();
-    const activeIds = new Set<string>();
-    presence.forEach((p) => {
-      if (currentUserId && p.userId === currentUserId) return;
-      activeIds.add(p.userId);
-      const history = presenceHistoryRef.current.get(p.userId) ?? [];
-      history.push({ x: p.position.x, y: p.position.y, t: snapshotNow });
-      if (history.length > 10) {
-        history.splice(0, history.length - 10);
-      }
-      presenceHistoryRef.current.set(p.userId, history);
-    });
+    const render = () => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    for (const id of presenceHistoryRef.current.keys()) {
-      if (!activeIds.has(id)) {
-        presenceHistoryRef.current.delete(id);
-        smoothedPositionsRef.current.delete(id);
-        smoothedPositionsRef.current.delete(`${id}-target`);
-      }
-    }
+      const renderWidth = dimensions.width;
+      const renderHeight = dimensions.height;
 
-    // Background (white grid outside bubble)
-    ctx.fillStyle = outsideColor;
-    ctx.fillRect(0, 0, renderWidth, renderHeight);
+      const snapshotNow = performance.now();
+      const activeIds = new Set<string>();
+      presence.forEach((p) => {
+        if (currentUserId && p.userId === currentUserId) return;
+        activeIds.add(p.userId);
+        const history = presenceHistoryRef.current.get(p.userId) ?? [];
+        history.push({ x: p.position.x, y: p.position.y, t: snapshotNow });
+        if (history.length > 10) {
+          history.splice(0, history.length - 10);
+        }
+        presenceHistoryRef.current.set(p.userId, history);
+      });
 
-    const centerX = renderWidth / 2;
-    const centerY = renderHeight / 2;
-
-    const minorSpacing = 80;
-    const majorSpacing = minorSpacing * 5;
-    const minorScreen = minorSpacing * camera.zoom;
-
-    const leftWorld = camera.x - centerX / camera.zoom;
-    const rightWorld = camera.x + centerX / camera.zoom;
-    const topWorld = camera.y - centerY / camera.zoom;
-    const bottomWorld = camera.y + centerY / camera.zoom;
-
-    const drawGrid = (spacingWorld: number, strokeStyle: string) => {
-      if (!Number.isFinite(spacingWorld) || spacingWorld <= 0) return;
-      ctx.beginPath();
-
-      const startX = Math.floor(leftWorld / spacingWorld) * spacingWorld;
-      const endX = Math.ceil(rightWorld / spacingWorld) * spacingWorld;
-      for (let x = startX; x <= endX; x += spacingWorld) {
-        const sx = (x - camera.x) * camera.zoom + centerX;
-        ctx.moveTo(sx, 0);
-        ctx.lineTo(sx, renderHeight);
+      for (const id of presenceHistoryRef.current.keys()) {
+        if (!activeIds.has(id)) {
+          presenceHistoryRef.current.delete(id);
+          smoothedPositionsRef.current.delete(id);
+          smoothedPositionsRef.current.delete(`${id}-target`);
+        }
       }
 
-      const startY = Math.floor(topWorld / spacingWorld) * spacingWorld;
-      const endY = Math.ceil(bottomWorld / spacingWorld) * spacingWorld;
-      for (let y = startY; y <= endY; y += spacingWorld) {
-        const sy = (y - camera.y) * camera.zoom + centerY;
-        ctx.moveTo(0, sy);
-        ctx.lineTo(renderWidth, sy);
-      }
+      // Background (white grid outside bubble)
+      ctx.fillStyle = outsideColor;
+      ctx.fillRect(0, 0, renderWidth, renderHeight);
 
-      ctx.strokeStyle = strokeStyle;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    };
+      const centerX = renderWidth / 2;
+      const centerY = renderHeight / 2;
 
-    const gridSpacing = minorScreen >= 18 ? minorSpacing : majorSpacing;
-    drawGrid(gridSpacing, "rgba(15, 23, 42, 0.03)");
+      const minorSpacing = 80;
+      const majorSpacing = minorSpacing * 5;
+      const minorScreen = minorSpacing * camera.zoom;
 
-    const bubbleCenter = worldToScreen(0, 0, renderWidth, renderHeight);
-    const bubbleScreenRadius = bubbleRadius * camera.zoom;
+      const leftWorld = camera.x - centerX / camera.zoom;
+      const rightWorld = camera.x + centerX / camera.zoom;
+      const topWorld = camera.y - centerY / camera.zoom;
+      const bottomWorld = camera.y + centerY / camera.zoom;
 
-    // Bubble background
-    if (bubbleColor) {
-      const rgb = hexToRgb(bubbleColor);
-      const calm = rgb ? mixWithWhite(rgb, 0.9) : null;
-      const border = calm ? mixWithBlack(calm, 0.08) : null;
+      const drawGrid = (spacingWorld: number, strokeStyle: string) => {
+        if (!Number.isFinite(spacingWorld) || spacingWorld <= 0) return;
+        ctx.beginPath();
 
-      if (calm) {
-        ctx.save();
+        const startX = Math.floor(leftWorld / spacingWorld) * spacingWorld;
+        const endX = Math.ceil(rightWorld / spacingWorld) * spacingWorld;
+        for (let x = startX; x <= endX; x += spacingWorld) {
+          const sx = (x - camera.x) * camera.zoom + centerX;
+          ctx.moveTo(sx, 0);
+          ctx.lineTo(sx, renderHeight);
+        }
+
+        const startY = Math.floor(topWorld / spacingWorld) * spacingWorld;
+        const endY = Math.ceil(bottomWorld / spacingWorld) * spacingWorld;
+        for (let y = startY; y <= endY; y += spacingWorld) {
+          const sy = (y - camera.y) * camera.zoom + centerY;
+          ctx.moveTo(0, sy);
+          ctx.lineTo(renderWidth, sy);
+        }
+
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      };
+
+      const gridSpacing = minorScreen >= 18 ? minorSpacing : majorSpacing;
+      drawGrid(gridSpacing, "rgba(15, 23, 42, 0.03)");
+
+      const bubbleCenter = worldToScreen(0, 0, renderWidth, renderHeight);
+      const bubbleScreenRadius = bubbleRadius * camera.zoom;
+
+      // Bubble background
+      if (bubbleColor) {
+        const rgb = hexToRgb(bubbleColor);
+        const calm = rgb ? mixWithWhite(rgb, 0.9) : null;
+        const border = calm ? mixWithBlack(calm, 0.08) : null;
+
+        if (calm) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(bubbleCenter.x, bubbleCenter.y, bubbleScreenRadius, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.fillStyle = `rgb(${clamp255(calm.r)}, ${clamp255(calm.g)}, ${clamp255(calm.b)})`;
+          ctx.fillRect(0, 0, renderWidth, renderHeight);
+          ctx.restore();
+        }
+
+        // Bubble boundary
         ctx.beginPath();
         ctx.arc(bubbleCenter.x, bubbleCenter.y, bubbleScreenRadius, 0, Math.PI * 2);
-        ctx.clip();
-        ctx.fillStyle = `rgb(${clamp255(calm.r)}, ${clamp255(calm.g)}, ${clamp255(calm.b)})`;
-        ctx.fillRect(0, 0, renderWidth, renderHeight);
-        ctx.restore();
+        const bubbleBorder = border ?? { r: 15, g: 23, b: 42 };
+        ctx.strokeStyle = `rgb(${clamp255(bubbleBorder.r)}, ${clamp255(bubbleBorder.g)}, ${clamp255(bubbleBorder.b)})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
       }
 
-      // Bubble boundary
+      // Clip specks to bubble so the inside stays circular.
+      ctx.save();
       ctx.beginPath();
       ctx.arc(bubbleCenter.x, bubbleCenter.y, bubbleScreenRadius, 0, Math.PI * 2);
-      const bubbleBorder = border ?? { r: 15, g: 23, b: 42 };
-      ctx.strokeStyle = `rgb(${clamp255(bubbleBorder.r)}, ${clamp255(bubbleBorder.g)}, ${clamp255(bubbleBorder.b)})`;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
+      ctx.clip();
 
-    // Clip specks to bubble so the inside stays circular.
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(bubbleCenter.x, bubbleCenter.y, bubbleScreenRadius, 0, Math.PI * 2);
-    ctx.clip();
-
-    const currentUserScreen =
-      currentUserId && currentUserPosition
-        ? worldToScreen(
+      const currentUserScreen =
+        currentUserId && currentUserPosition
+          ? worldToScreen(
             currentUserPosition.x,
             currentUserPosition.y,
             renderWidth,
             renderHeight
           )
-        : { x: renderWidth / 2, y: renderHeight / 2 };
+          : { x: renderWidth / 2, y: renderHeight / 2 };
 
-    // Draw other users
-    presence.forEach((p) => {
-      if (currentUserId === p.userId) return;
+      // Calculate pulse factor for glow animation
+      const time = Date.now();
+      const pulse = Math.sin(time * 0.002) * 0.15 + 1; // Oscillates between 0.85 and 1.15
 
-      const isInSameThread =
-        currentThreadId !== null && p.currentThreadId === currentThreadId;
+      // Draw other users
+      presence.forEach((p) => {
+        if (currentUserId === p.userId) return;
 
-      const smoothed = getSmoothedPosition(p.userId, p.position);
+        const isInSameThread =
+          currentThreadId !== null && p.currentThreadId === currentThreadId;
 
-      // Convert world position to screen position
-      const screenPos = worldToScreen(
-        smoothed.x,
-        smoothed.y,
-        renderWidth,
-        renderHeight
-      );
+        const smoothed = getSmoothedPosition(p.userId, p.position);
 
-      // Determine size and color
-      const baseSize = 3;
-      const size = baseSize * camera.zoom;
+        // Convert world position to screen position
+        const screenPos = worldToScreen(
+          smoothed.x,
+          smoothed.y,
+          renderWidth,
+          renderHeight
+        );
 
-      const fillColor = isInSameThread ? "#FAF5F2" : "#C4B8B0";
+        // Determine size and color
+        const baseSize = 3;
+        const size = baseSize * camera.zoom;
 
-      // Draw speck
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, size, 0, Math.PI * 2);
-      ctx.fillStyle = fillColor;
-      ctx.fill();
+        const fillColor = isInSameThread ? "#FAF5F2" : "#C4B8B0";
+        const isLightColor = fillColor === "#FAF5F2";
 
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, size, 0, Math.PI * 2);
-      ctx.strokeStyle =
-        fillColor === "#FAF5F2" ? "rgba(92, 74, 66, 0.25)" : "rgba(92, 74, 66, 0.18)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    });
+        // Modulate gradient size with pulse
+        const gradient = ctx.createRadialGradient(screenPos.x, screenPos.y, 0, screenPos.x, screenPos.y, size * (1.2 + pulse * 0.4));
+        gradient.addColorStop(0, fillColor);
+        gradient.addColorStop(0.4, fillColor);
+        gradient.addColorStop(1, isLightColor ? `rgba(250, 245, 242, 0)` : `rgba(196, 184, 176, 0)`);
 
-    // Draw current user.
-    if (currentUserId) {
-      const baseSize = 5;
-      const size = baseSize * camera.zoom;
+        // Shadow with pulsing opacity
+        ctx.shadowColor = isLightColor
+          ? `rgba(255, 255, 255, ${0.3 + pulse * 0.3})`
+          : `rgba(196, 184, 176, ${0.2 + pulse * 0.2})`;
+        ctx.shadowBlur = (4 + pulse * 4) * camera.zoom;
 
-      ctx.beginPath();
-      ctx.arc(currentUserScreen.x, currentUserScreen.y, size, 0, Math.PI * 2);
-      ctx.fillStyle = "#FAF5F2";
-      ctx.fill();
+        ctx.beginPath();
+        ctx.arc(screenPos.x, screenPos.y, size, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
 
-      ctx.beginPath();
-      ctx.arc(currentUserScreen.x, currentUserScreen.y, size, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(92, 74, 66, 0.25)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
+        // Reset shadow for stroke
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
 
-      ctx.beginPath();
-      ctx.arc(currentUserScreen.x, currentUserScreen.y, size + 2, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(253, 248, 245, 0.5)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
+        ctx.beginPath();
+        ctx.arc(screenPos.x, screenPos.y, size, 0, Math.PI * 2);
+        ctx.strokeStyle =
+          fillColor === "#FAF5F2" ? "rgba(92, 74, 66, 0.25)" : "rgba(92, 74, 66, 0.18)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
 
-    const now = Date.now();
-    if (speechBubbles?.length) {
-      ctx.font = `500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      for (const bubble of speechBubbles) {
-        if (now - bubble.createdAt > 2800) continue;
+      // Draw current user with enhanced glow
+      if (currentUserId) {
+        const baseSize = 5;
+        const size = baseSize * camera.zoom;
 
-        if (currentUserId && bubble.userId === currentUserId) {
-          drawSpeechBubble(ctx, currentUserScreen.x, currentUserScreen.y, bubble.body);
-          continue;
-        }
+        // Radial gradient for current user
+        const gradient = ctx.createRadialGradient(
+          currentUserScreen.x,
+          currentUserScreen.y,
+          0,
+          currentUserScreen.x,
+          currentUserScreen.y,
+          size * (1.3 + pulse * 0.5)
+        );
+        gradient.addColorStop(0, "#FAF5F2");
+        gradient.addColorStop(0.3, "#FAF5F2");
+        gradient.addColorStop(1, "rgba(250, 245, 242, 0)");
 
-        const presenceItem = presence.find((p) => p.userId === bubble.userId);
-        if (!presenceItem) continue;
+        // Stronger shadow for current user with pulse
+        ctx.shadowColor = `rgba(255, 255, 255, ${0.4 + pulse * 0.4})`;
+        ctx.shadowBlur = (6 + pulse * 6) * camera.zoom;
 
-        const smoothed = getSmoothedPosition(presenceItem.userId, presenceItem.position);
-        const screenPos = worldToScreen(smoothed.x, smoothed.y, renderWidth, renderHeight);
-        drawSpeechBubble(ctx, screenPos.x, screenPos.y, bubble.body);
+        ctx.beginPath();
+        ctx.arc(currentUserScreen.x, currentUserScreen.y, size, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        // Reset shadow
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+
+        ctx.beginPath();
+        ctx.arc(currentUserScreen.x, currentUserScreen.y, size, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(92, 74, 66, 0.25)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(currentUserScreen.x, currentUserScreen.y, size + 2, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(253, 248, 245, 0.5)";
+
+        ctx.lineWidth = 2;
+        ctx.stroke();
       }
-    }
 
-    ctx.restore();
+      const now = Date.now();
+      if (speechBubbles?.length) {
+        ctx.font = `500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        for (const bubble of speechBubbles) {
+          if (now - bubble.createdAt > 2800) continue;
+
+          if (currentUserId && bubble.userId === currentUserId) {
+            drawSpeechBubble(ctx, currentUserScreen.x, currentUserScreen.y, bubble.body);
+            continue;
+          }
+
+          const presenceItem = presence.find((p) => p.userId === bubble.userId);
+          if (!presenceItem) continue;
+
+          const smoothed = getSmoothedPosition(presenceItem.userId, presenceItem.position);
+          const screenPos = worldToScreen(smoothed.x, smoothed.y, renderWidth, renderHeight);
+          drawSpeechBubble(ctx, screenPos.x, screenPos.y, bubble.body);
+        }
+      }
+
+      ctx.restore();
+
+      // Request next frame
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    // Start animation loop
+    animationFrameId = requestAnimationFrame(render);
+
+    // Cleanup
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+
+    };
   }, [
     presence,
     currentUserId,
