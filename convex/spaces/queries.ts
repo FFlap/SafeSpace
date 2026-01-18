@@ -1,6 +1,13 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
 
+export const listSpaces = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("spaces").collect();
+  },
+});
+
 export const listAllSpaces = query({
   args: {},
   handler: async (ctx) => {

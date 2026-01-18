@@ -37,3 +37,24 @@ export const getMyPresence = query({
       .first();
   },
 });
+
+export const listActivePresenceCounts = query({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const thirtySecondsAgo = now - 30000;
+
+    const activePresence = await ctx.db
+      .query("spacePresence")
+      .filter((q) => q.gt(q.field("lastSeen"), thirtySecondsAgo))
+      .collect();
+
+    const counts: Record<string, number> = {};
+    for (const presence of activePresence) {
+      const spaceId = presence.spaceId;
+      counts[spaceId] = (counts[spaceId] ?? 0) + 1;
+    }
+
+    return counts;
+  },
+});
