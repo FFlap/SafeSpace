@@ -349,6 +349,7 @@ function FieldPage() {
           <SpaceOverlay
             spaceName={selectedSpace.name}
             spaceColor={selectedSpace.color}
+            clusterId={selectedSpace.clusterId ?? undefined}
             threads={threads}
             presence={presence}
             currentUserId={user?._id ?? null}

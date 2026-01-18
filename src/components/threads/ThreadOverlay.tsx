@@ -12,6 +12,37 @@ import {
 } from "@/hooks/useThreadMessages";
 import type { Id } from "../../../convex/_generated/dataModel";
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : null;
+}
+
+function toHexByte(value: number): string {
+  return Math.max(0, Math.min(255, value)).toString(16).padStart(2, "0");
+}
+
+function rgbToHex(rgb: { r: number; g: number; b: number }): string {
+  return `#${toHexByte(rgb.r)}${toHexByte(rgb.g)}${toHexByte(rgb.b)}`;
+}
+
+function mixWithWhite(
+  rgb: { r: number; g: number; b: number },
+  amount: number,
+): { r: number; g: number; b: number } {
+  const a = Math.max(0, Math.min(1, amount));
+  return {
+    r: Math.round(rgb.r * (1 - a) + 255 * a),
+    g: Math.round(rgb.g * (1 - a) + 255 * a),
+    b: Math.round(rgb.b * (1 - a) + 255 * a),
+  };
+}
+
 interface PresenceUser {
   _id: Id<"spacePresence">;
   userId: Id<"users">;
@@ -32,7 +63,6 @@ interface ThreadOverlayProps {
   onLeave: () => void;
 }
 
-
 function hashString(input: string): number {
   let hash = 2166136261;
   for (let i = 0; i < input.length; i++) {
@@ -43,7 +73,10 @@ function hashString(input: string): number {
 }
 
 function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 interface Participant {
@@ -52,7 +85,11 @@ interface Participant {
   isCurrentUser: boolean;
 }
 
-function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+function truncateText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string {
   const t = text.trim().replace(/\s+/g, " ");
   if (!t) return "";
   if (ctx.measureText(t).width <= maxWidth) return t;
@@ -72,7 +109,7 @@ function drawSpeechBubble(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  text: string
+  text: string,
 ): void {
   const maxTextWidth = 220;
   const t = truncateText(ctx, text, maxTextWidth);
@@ -98,7 +135,7 @@ function drawSpeechBubble(
     bx + bubbleWidth,
     by + bubbleHeight,
     bx + bubbleWidth - radius,
-    by + bubbleHeight
+    by + bubbleHeight,
   );
   ctx.lineTo(x + pointerW / 2, by + bubbleHeight);
   ctx.lineTo(x, by + bubbleHeight + pointerH);
@@ -129,18 +166,21 @@ function ThreadParticipantsCanvas({
   onUserClick,
 }: {
   participants: Participant[];
-  speechBubbles?: Array<{ userId: Id<"users">; body: string; createdAt: number }>;
+  speechBubbles?: Array<{
+    userId: Id<"users">;
+    body: string;
+    createdAt: number;
+  }>;
   currentUserPosition?: { x: number; y: number };
   bubbleColor: string;
   onUserClick?: (userId: Id<"users">) => void;
 }) {
-
   const { camera, pan, zoomBy, worldToScreen } = useCamera();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const hitAreasRef = useRef<Array<{ userId: Id<"users">; x: number; y: number; r: number }>>(
-    []
-  );
+  const hitAreasRef = useRef<
+    Array<{ userId: Id<"users">; x: number; y: number; r: number }>
+  >([]);
   const [isDragging, setIsDragging] = useState(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const mouseDownPos = useRef({ x: 0, y: 0 });
@@ -276,12 +316,22 @@ function ThreadParticipantsCanvas({
         ctx.stroke();
       }
 
-      const bubble = speechBubbles?.find((b) => b.userId === participant.userId);
+      const bubble = speechBubbles?.find(
+        (b) => b.userId === participant.userId,
+      );
       if (bubble && now - bubble.createdAt <= 2800) {
         drawSpeechBubble(ctx, x, y, bubble.body);
       }
     }
-  }, [participants, speechBubbles, currentUserPosition, dimensions, camera.zoom, worldToScreen, bubbleColor]);
+  }, [
+    participants,
+    speechBubbles,
+    currentUserPosition,
+    dimensions,
+    camera.zoom,
+    worldToScreen,
+    bubbleColor,
+  ]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -372,10 +422,18 @@ export function ThreadOverlay({
   onClose,
   onLeave,
 }: ThreadOverlayProps) {
-  const { messages } = useThreadMessages(threadId, { since: joinedAt, limit: 200 });
+  const { messages } = useThreadMessages(threadId, {
+    since: joinedAt,
+    limit: 200,
+  });
   const { chatters } = useThreadChatters(threadId);
-  const { sendThreadMessage, setThreadNameConsent } = useThreadMessageMutations();
+  const { sendThreadMessage, setThreadNameConsent } =
+    useThreadMessageMutations();
   const { shareName } = useThreadNameConsent(threadId, currentUserId);
+  const softenedBubbleColor = useMemo(() => {
+    const rgb = hexToRgb(bubbleColor);
+    return rgb ? rgbToHex(mixWithWhite(rgb, 0.8)) : bubbleColor;
+  }, [bubbleColor]);
 
   const [optimisticMessages, setOptimisticMessages] = useState<
     Array<{
@@ -391,7 +449,9 @@ export function ThreadOverlay({
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isTogglingName, setIsTogglingName] = useState(false);
-  const [moderationWarning, setModerationWarning] = useState<string | null>(null);
+  const [moderationWarning, setModerationWarning] = useState<string | null>(
+    null,
+  );
   const [now, setNow] = useState(() => Date.now());
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
@@ -407,11 +467,13 @@ export function ThreadOverlay({
         (m) =>
           m.userId === o.userId &&
           m.body === o.body &&
-          Math.abs(m.createdAt - o.createdAt) < 5000
+          Math.abs(m.createdAt - o.createdAt) < 5000,
       );
       return !hasMatch;
     });
-    return [...messages, ...optimistic].sort((a, b) => a.createdAt - b.createdAt);
+    return [...messages, ...optimistic].sort(
+      (a, b) => a.createdAt - b.createdAt,
+    );
   }, [messages, optimisticMessages]);
 
   useEffect(() => {
@@ -422,7 +484,7 @@ export function ThreadOverlay({
       if (seenMessageIdsRef.current.has(id) && !serverIds.has(id)) {
         // Message was seen but now deleted - AI moderation
         setModerationWarning(
-          "Your message was removed because it violates our community guidelines."
+          "Your message was removed because it violates our community guidelines.",
         );
         sentMessageIdsRef.current.delete(id);
         seenMessageIdsRef.current.delete(id);
@@ -463,23 +525,28 @@ export function ThreadOverlay({
     for (const id of chatters) allIds.add(id);
     for (const id of activeIds) allIds.add(id);
 
-    return [...allIds]
-      .sort()
-      .map((id) => ({
-        userId: id as Id<"users">,
-        isActive: activeIds.has(id),
-        isCurrentUser: id === currentUserId,
-      }));
+    return [...allIds].sort().map((id) => ({
+      userId: id as Id<"users">,
+      isActive: activeIds.has(id),
+      isCurrentUser: id === currentUserId,
+    }));
   }, [presence, chatters, threadId, currentUserId]);
 
   const speechBubbles = useMemo(() => {
-    const byUser = new Map<string, { userId: Id<"users">; body: string; createdAt: number }>();
+    const byUser = new Map<
+      string,
+      { userId: Id<"users">; body: string; createdAt: number }
+    >();
     for (let i = displayMessages.length - 1; i >= 0; i--) {
       const m = displayMessages[i];
       if (now - m.createdAt > 2800) continue;
       if ((m as any).isSystemMessage) continue;
       if (byUser.has(m.userId)) continue;
-      byUser.set(m.userId, { userId: m.userId, body: m.body, createdAt: m.createdAt });
+      byUser.set(m.userId, {
+        userId: m.userId,
+        body: m.body,
+        createdAt: m.createdAt,
+      });
     }
     return [...byUser.values()];
   }, [displayMessages, now]);
@@ -498,7 +565,8 @@ export function ThreadOverlay({
     if (!bottom || !last) return;
 
     const shouldStick =
-      chatNearBottomRef.current || (currentUserId ? last.userId === currentUserId : false);
+      chatNearBottomRef.current ||
+      (currentUserId ? last.userId === currentUserId : false);
     if (shouldStick) {
       bottom.scrollIntoView({ block: "end", behavior: "auto" });
     }
@@ -537,10 +605,16 @@ export function ThreadOverlay({
     ]);
 
     try {
-      const res = await sendThreadMessage({ threadId, userId: currentUserId, body });
+      const res = await sendThreadMessage({
+        threadId,
+        userId: currentUserId,
+        body,
+      });
       if ((res as any)?.status === "blocked") {
         // Remove optimistic message and show warning
-        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
+        setOptimisticMessages((prev) =>
+          prev.filter((o) => o._id !== optimisticId),
+        );
         setModerationWarning((res as any)?.warning ?? "Message blocked.");
       } else {
         // Message sent - track the ID to detect AI moderation deletions
@@ -548,10 +622,14 @@ export function ThreadOverlay({
         if (messageId) {
           sentMessageIdsRef.current.add(messageId);
         }
-        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
+        setOptimisticMessages((prev) =>
+          prev.filter((o) => o._id !== optimisticId),
+        );
       }
     } catch {
-      setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
+      setOptimisticMessages((prev) =>
+        prev.filter((o) => o._id !== optimisticId),
+      );
       setModerationWarning("Message failed to send.");
     } finally {
       setIsSending(false);
@@ -601,7 +679,11 @@ export function ThreadOverlay({
                 className="text-white/70 hover:text-white hover:bg-white/10 text-xs h-7 px-2"
                 title="Reveal or hide your name in this thread"
               >
-                {shareName ? <EyeOff className="w-3 h-3 mr-1" /> : <Eye className="w-3 h-3 mr-1" />}
+                {shareName ? (
+                  <EyeOff className="w-3 h-3 mr-1" />
+                ) : (
+                  <Eye className="w-3 h-3 mr-1" />
+                )}
                 {shareName ? "Hide" : "Share"}
               </Button>
               <Button
@@ -624,7 +706,10 @@ export function ThreadOverlay({
             <div className="space-y-3">
               {displayMessages.map((m) => {
                 const isSystem = (m as any).isSystemMessage;
-                const isMine = Boolean(currentUserId) && m.userId === currentUserId && !isSystem;
+                const isMine =
+                  Boolean(currentUserId) &&
+                  m.userId === currentUserId &&
+                  !isSystem;
                 return (
                   <div
                     key={m._id}
@@ -639,11 +724,15 @@ export function ThreadOverlay({
                             : "bg-white/10 text-white"
                       }`}
                     >
-                      <div className={`text-[11px] mb-1 ${isSystem ? "text-blue-300" : "opacity-70"}`}>
+                      <div
+                        className={`text-[11px] mb-1 ${isSystem ? "text-blue-300" : "opacity-70"}`}
+                      >
                         {m.displayName ? `${m.displayName} • ` : ""}
                         {formatTime(m.createdAt)}
                       </div>
-                      <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                      <div className="whitespace-pre-wrap break-words">
+                        {m.body}
+                      </div>
                     </div>
                   </div>
                 );
@@ -654,7 +743,9 @@ export function ThreadOverlay({
 
           <div className="border-t border-white/10">
             {moderationWarning && (
-              <div className="px-4 pt-3 text-xs text-red-200">{moderationWarning}</div>
+              <div className="px-4 pt-3 text-xs text-red-200">
+                {moderationWarning}
+              </div>
             )}
             <div className="p-4 flex gap-2">
               <Input
@@ -683,7 +774,7 @@ export function ThreadOverlay({
             participants={participants}
             speechBubbles={speechBubbles}
             currentUserPosition={currentUserPosition}
-            bubbleColor={bubbleColor}
+            bubbleColor={softenedBubbleColor}
             onUserClick={(userId) => {
               if (!onRequestDm || !currentUserId) return;
               if (userId === currentUserId) return;

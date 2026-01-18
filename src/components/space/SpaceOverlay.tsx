@@ -29,7 +29,7 @@ function rgbToHex(rgb: { r: number; g: number; b: number }): string {
 
 function mixWithWhite(
   rgb: { r: number; g: number; b: number },
-  amount: number
+  amount: number,
 ): { r: number; g: number; b: number } {
   const a = Math.max(0, Math.min(1, amount));
   return {
@@ -37,6 +37,34 @@ function mixWithWhite(
     g: Math.round(rgb.g * (1 - a) + 255 * a),
     b: Math.round(rgb.b * (1 - a) + 255 * a),
   };
+}
+
+function mixColors(
+  base: { r: number; g: number; b: number },
+  blend: { r: number; g: number; b: number },
+  blendAmount: number,
+): { r: number; g: number; b: number } {
+  const a = Math.max(0, Math.min(1, blendAmount));
+  return {
+    r: Math.round(base.r * (1 - a) + blend.r * a),
+    g: Math.round(base.g * (1 - a) + blend.g * a),
+    b: Math.round(base.b * (1 - a) + blend.b * a),
+  };
+}
+
+function getClusterPaletteColor(clusterId?: number): string | null {
+  if (clusterId === undefined || clusterId === null) return null;
+  const palette = [
+    "#8bb6ff",
+    "#8ad6c5",
+    "#f2b7c3",
+    "#f4c58d",
+    "#c6b3f0",
+    "#a7d2f8",
+    "#cde18d",
+    "#f3d19f",
+  ];
+  return palette[Math.abs(clusterId) % palette.length] ?? null;
 }
 
 interface PresenceUser {
@@ -57,6 +85,7 @@ interface Thread {
 interface SpaceOverlayProps {
   spaceName: string;
   spaceColor: string;
+  clusterId?: number;
   threads: Thread[];
   presence: PresenceUser[];
   currentUserId: Id<"users"> | null;
@@ -73,6 +102,7 @@ interface SpaceOverlayProps {
 export function SpaceOverlay({
   spaceName,
   spaceColor,
+  clusterId,
   threads,
   presence,
   currentUserId,
@@ -85,18 +115,31 @@ export function SpaceOverlay({
   onRequestDm,
   onCurrentUserPositionChange,
 }: SpaceOverlayProps) {
+  const displayColor = useMemo(() => {
+    const clusterHex = getClusterPaletteColor(clusterId);
+    const baseHex = clusterHex ?? spaceColor;
+    const baseRgb = hexToRgb(baseHex);
+    if (!baseRgb) return spaceColor;
+    const spaceRgb = hexToRgb(spaceColor) ?? baseRgb;
+    const mixed = clusterHex ? mixColors(baseRgb, spaceRgb, 0.25) : baseRgb;
+    return rgbToHex(mixed);
+  }, [clusterId, spaceColor]);
+
   const bubbleRadius = 360 + Math.sqrt(Math.max(1, presence.length)) * 140;
   const calmSpaceColor = useMemo(() => {
-    const rgb = hexToRgb(spaceColor);
-    return rgb ? rgbToHex(mixWithWhite(rgb, 0.9)) : spaceColor;
-  }, [spaceColor]);
+    const rgb = hexToRgb(displayColor);
+    return rgb ? rgbToHex(mixWithWhite(rgb, 0.6)) : displayColor;
+  }, [displayColor]);
 
   const bubbleColor = useMemo(() => {
-    const rgb = hexToRgb(spaceColor);
-    return rgb ? rgbToHex(mixWithWhite(rgb, 0.9)) : spaceColor;
-  }, [spaceColor]);
+    const rgb = hexToRgb(displayColor);
+    return rgb ? rgbToHex(mixWithWhite(rgb, 0.3)) : displayColor;
+  }, [displayColor]);
   const [threadJoinedAt, setThreadJoinedAt] = useState<number>(Date.now());
-  const [currentUserPosition, setCurrentUserPosition] = useState<{ x: number; y: number }>({
+  const [currentUserPosition, setCurrentUserPosition] = useState<{
+    x: number;
+    y: number;
+  }>({
     x: 0,
     y: 0,
   });
@@ -105,7 +148,7 @@ export function SpaceOverlay({
 
   const currentThread = useMemo(
     () => threads.find((t) => t._id === currentThreadId) ?? null,
-    [threads, currentThreadId]
+    [threads, currentThreadId],
   );
 
   useEffect(() => {
@@ -124,12 +167,19 @@ export function SpaceOverlay({
       if (p.currentThreadId === currentThreadId) activeIds.add(p.userId);
     }
 
-    const byUser = new Map<string, { userId: Id<"users">; body: string; createdAt: number }>();
+    const byUser = new Map<
+      string,
+      { userId: Id<"users">; body: string; createdAt: number }
+    >();
     for (let i = threadMessages.length - 1; i >= 0; i--) {
       const m = threadMessages[i];
       if (!activeIds.has(m.userId)) continue;
       if (byUser.has(m.userId)) continue;
-      byUser.set(m.userId, { userId: m.userId, body: m.body, createdAt: m.createdAt });
+      byUser.set(m.userId, {
+        userId: m.userId,
+        body: m.body,
+        createdAt: m.createdAt,
+      });
     }
 
     return [...byUser.values()];
@@ -139,11 +189,13 @@ export function SpaceOverlay({
     ({ zoom }: { bubbleCenter: { x: number; y: number }; zoom: number }) => {
       viewZoomRef.current = zoom;
     },
-    []
+    [],
   );
 
-
-  const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [viewport, setViewport] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
 
   useEffect(() => {
     const handleResize = () => {
@@ -161,7 +213,6 @@ export function SpaceOverlay({
   const minZoom = Math.max(0.8, Math.min(2.2, maxZoom * 1.6));
   const zoomBounds = { min: minZoom, max: maxZoom };
 
-
   useEffect(() => {
     onCurrentUserPositionChange?.(currentUserPosition);
   }, [currentUserPosition, onCurrentUserPositionChange]);
@@ -171,9 +222,11 @@ export function SpaceOverlay({
     const radius = Math.max(20, bubbleRadius * 0.2);
     const angle = Math.random() * Math.PI * 2;
     hasSpawnedRef.current = true;
-    setCurrentUserPosition({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+    setCurrentUserPosition({
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+    });
   }, [bubbleRadius]);
-
 
   useEffect(() => {
     setCurrentUserPosition((prev) => {
@@ -212,26 +265,26 @@ export function SpaceOverlay({
     <div className="fixed inset-0 z-50">
       {/* Bubble canvas */}
       <div className="absolute inset-0">
-          <SpeckField
-            presence={presence}
-            currentUserId={currentUserId}
-            currentThreadId={currentThreadId}
-            bubbleColor={bubbleColor}
-            bubbleRadius={bubbleRadius}
-            outsideColor="#ffffff"
-            useMainCanvasBackground
-            currentUserPosition={currentUserPosition}
-            speechBubbles={speechBubbles}
-            keyboardEnabled={false}
-            zoomBounds={zoomBounds}
-            initialZoom={minZoom}
-            onSpeckClick={(userId) => {
-              if (!onRequestDm || !currentUserId) return;
-              if (userId === currentUserId) return;
-              void Promise.resolve(onRequestDm(userId)).catch(() => {});
-            }}
-            onViewTransform={handleViewTransform}
-          />
+        <SpeckField
+          presence={presence}
+          currentUserId={currentUserId}
+          currentThreadId={currentThreadId}
+          bubbleColor={bubbleColor}
+          bubbleRadius={bubbleRadius}
+          outsideColor="#ffffff"
+          useMainCanvasBackground
+          currentUserPosition={currentUserPosition}
+          speechBubbles={speechBubbles}
+          keyboardEnabled={false}
+          zoomBounds={zoomBounds}
+          initialZoom={minZoom}
+          onSpeckClick={(userId) => {
+            if (!onRequestDm || !currentUserId) return;
+            if (userId === currentUserId) return;
+            void Promise.resolve(onRequestDm(userId)).catch(() => {});
+          }}
+          onViewTransform={handleViewTransform}
+        />
 
         <div className="absolute inset-y-16 left-0 w-[320px] bg-gradient-to-r from-[#3D3637]/65 via-[#3D3637]/30 to-transparent pointer-events-none" />
       </div>
@@ -289,7 +342,9 @@ export function SpaceOverlay({
       {currentThreadId && (
         <ThreadOverlay
           threadId={currentThreadId}
-          threadDescription={currentThread?.description ?? currentThread?.name ?? "Thread"}
+          threadDescription={
+            currentThread?.description ?? currentThread?.name ?? "Thread"
+          }
           presence={presence}
           currentUserId={currentUserId}
           joinedAt={threadJoinedAt}
