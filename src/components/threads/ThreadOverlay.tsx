@@ -372,7 +372,7 @@ export function ThreadOverlay({
   const { sendThreadMessage, setThreadNameConsent } = useThreadMessageMutations();
   const { shareName } = useThreadNameConsent(threadId, currentUserId);
 
-  const [pendingMessages, setPendingMessages] = useState<
+  const [optimisticMessages, setOptimisticMessages] = useState<
     Array<{
       _id: string;
       threadId: Id<"spaceThreads">;
@@ -381,8 +381,6 @@ export function ThreadOverlay({
       createdAt: number;
       displayName?: string | null;
       isSystemMessage?: boolean;
-      isPending: true;
-      serverId?: string;
     }>
   >([]);
   const [draft, setDraft] = useState("");
@@ -393,20 +391,42 @@ export function ThreadOverlay({
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const chatNearBottomRef = useRef(true);
+  // Track message IDs we've sent to detect AI moderation deletions
+  const sentMessageIdsRef = useRef<Set<string>>(new Set());
+  const seenMessageIdsRef = useRef<Set<string>>(new Set());
 
   const displayMessages = useMemo(() => {
-    const serverIds = new Set(messages.map((m) => m._id));
-    const pending = pendingMessages.filter((p) => !p.serverId || !serverIds.has(p.serverId));
-    return [...messages, ...pending].sort((a, b) => a.createdAt - b.createdAt);
-  }, [messages, pendingMessages]);
+    // Filter out optimistic messages that have a matching real message (same user, body, similar time)
+    const optimistic = optimisticMessages.filter((o) => {
+      const hasMatch = messages.some(
+        (m) =>
+          m.userId === o.userId &&
+          m.body === o.body &&
+          Math.abs(m.createdAt - o.createdAt) < 5000
+      );
+      return !hasMatch;
+    });
+    return [...messages, ...optimistic].sort((a, b) => a.createdAt - b.createdAt);
+  }, [messages, optimisticMessages]);
 
   useEffect(() => {
     const serverIds = new Set(messages.map((m) => m._id));
-    setPendingMessages((prev) => {
-      if (prev.length === 0) return prev;
-      const next = prev.filter((p) => !p.serverId || !serverIds.has(p.serverId));
-      return next.length === prev.length ? prev : next;
-    });
+
+    // Detect AI moderation: a sent message we saw before is now gone
+    for (const id of sentMessageIdsRef.current) {
+      if (seenMessageIdsRef.current.has(id) && !serverIds.has(id)) {
+        // Message was seen but now deleted - AI moderation
+        setModerationWarning(
+          "Your message was removed because it violates our community guidelines."
+        );
+        sentMessageIdsRef.current.delete(id);
+        seenMessageIdsRef.current.delete(id);
+        break;
+      }
+      if (serverIds.has(id)) {
+        seenMessageIdsRef.current.add(id);
+      }
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -416,8 +436,10 @@ export function ThreadOverlay({
 
   useEffect(() => {
     chatNearBottomRef.current = true;
-    setPendingMessages([]);
+    setOptimisticMessages([]);
     setModerationWarning(null);
+    sentMessageIdsRef.current.clear();
+    seenMessageIdsRef.current.clear();
   }, [threadId]);
 
   useEffect(() => {
@@ -489,43 +511,42 @@ export function ThreadOverlay({
     const body = draft.trim();
     if (!body || !currentUserId) return;
 
-    const pendingId = makePendingId();
-    const pendingCreatedAt = Date.now();
+    const optimisticId = makePendingId();
+    const optimisticCreatedAt = Date.now();
 
     setDraft("");
     setIsSending(true);
-    setPendingMessages((prev) => [
+
+    // Show message immediately (optimistic update)
+    setOptimisticMessages((prev) => [
       ...prev,
       {
-        _id: pendingId,
+        _id: optimisticId,
         threadId,
         userId: currentUserId,
         body,
-        createdAt: pendingCreatedAt,
+        createdAt: optimisticCreatedAt,
         displayName: null,
         isSystemMessage: false,
-        isPending: true,
       },
     ]);
+
     try {
       const res = await sendThreadMessage({ threadId, userId: currentUserId, body });
       if ((res as any)?.status === "blocked") {
-        setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+        // Remove optimistic message and show warning
+        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
         setModerationWarning((res as any)?.warning ?? "Message blocked.");
-        return;
-      }
-      if ((res as any)?.status === "sent") {
-        const serverId = (res as any)?.messageId as string | undefined;
-        if (serverId) {
-          setPendingMessages((prev) =>
-            prev.map((p) => (p._id === pendingId ? { ...p, serverId } : p))
-          );
-        } else {
-          setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+      } else {
+        // Message sent - track the ID to detect AI moderation deletions
+        const messageId = (res as any)?.messageId;
+        if (messageId) {
+          sentMessageIdsRef.current.add(messageId);
         }
+        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
       }
     } catch {
-      setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+      setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
       setModerationWarning("Message failed to send.");
     } finally {
       setIsSending(false);
@@ -597,7 +618,6 @@ export function ThreadOverlay({
             <div className="space-y-3">
               {displayMessages.map((m) => {
                 const isSystem = (m as any).isSystemMessage;
-                const isPending = Boolean((m as any).isPending);
                 const isMine = Boolean(currentUserId) && m.userId === currentUserId && !isSystem;
                 return (
                   <div
@@ -611,12 +631,11 @@ export function ThreadOverlay({
                           : isMine
                             ? "bg-[#FAF5F2] text-[#3D3637]"
                             : "bg-white/10 text-white"
-                      } ${isPending ? "opacity-70" : ""}`}
+                      }`}
                     >
                       <div className={`text-[11px] mb-1 ${isSystem ? "text-blue-300" : "opacity-70"}`}>
                         {m.displayName ? `${m.displayName} • ` : ""}
                         {formatTime(m.createdAt)}
-                        {isPending ? " • Sending..." : ""}
                       </div>
                       <div className="whitespace-pre-wrap break-words">{m.body}</div>
                     </div>

@@ -65,6 +65,12 @@ function moderateByHeuristics(normalized: string): ModerationResult | null {
   return null;
 }
 
+// Prefilter-only check (instant, heuristics only)
+export function prefilterContent(content: string): ModerationResult | null {
+  const normalized = normalizeForModeration(content);
+  return moderateByHeuristics(normalized);
+}
+
 function parseModerationResult(raw: unknown): ModerationResult | null {
   if (typeof raw !== "string") return null;
   const upper = raw.toUpperCase();
@@ -75,11 +81,8 @@ function parseModerationResult(raw: unknown): ModerationResult | null {
   return null;
 }
 
-export async function moderateContent(content: string): Promise<ModerationResult> {
-  const normalized = normalizeForModeration(content);
-  const heuristicResult = moderateByHeuristics(normalized);
-  if (heuristicResult) return heuristicResult;
-
+// AI-only moderation (no heuristics, for background checks)
+export async function aiModerateContent(content: string): Promise<ModerationResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     console.warn("OPENROUTER_API_KEY not set, defaulting to SAFE");
@@ -125,5 +128,13 @@ export async function moderateContent(content: string): Promise<ModerationResult
     console.error("Moderation API error:", error);
     return "SAFE";
   }
+}
+
+export async function moderateContent(content: string): Promise<ModerationResult> {
+  const normalized = normalizeForModeration(content);
+  const heuristicResult = moderateByHeuristics(normalized);
+  if (heuristicResult) return heuristicResult;
+
+  return aiModerateContent(content);
 }
 

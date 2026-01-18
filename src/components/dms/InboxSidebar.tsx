@@ -248,7 +248,7 @@ function InboxConversationView({
   const { shareName } = useDmNameConsent(conversationId, currentUserId);
   const { sendDmMessage, setDmNameConsent } = useDmMutations();
 
-  const [pendingMessages, setPendingMessages] = useState<
+  const [optimisticMessages, setOptimisticMessages] = useState<
     Array<{
       _id: string;
       conversationId: Id<"dmConversations">;
@@ -257,8 +257,6 @@ function InboxConversationView({
       createdAt: number;
       displayName?: string | null;
       isSystemMessage?: boolean;
-      isPending: true;
-      serverId?: string;
     }>
   >([]);
   const [draft, setDraft] = useState("");
@@ -268,29 +266,51 @@ function InboxConversationView({
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const chatNearBottomRef = useRef(true);
+  // Track message IDs we've sent to detect AI moderation deletions
+  const sentMessageIdsRef = useRef<Set<string>>(new Set());
+  const seenMessageIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     chatNearBottomRef.current = true;
-    setPendingMessages([]);
+    setOptimisticMessages([]);
     setDraft("");
     setModerationWarning(null);
+    sentMessageIdsRef.current.clear();
+    seenMessageIdsRef.current.clear();
   }, [conversationId]);
 
   const displayMessages = useMemo(() => {
-    const serverIds = new Set(messages.map((m) => m._id));
-    const pending = pendingMessages.filter(
-      (p) => !p.serverId || !serverIds.has(p.serverId as any)
-    );
-    return [...messages, ...pending].sort((a, b) => a.createdAt - b.createdAt);
-  }, [messages, pendingMessages]);
+    // Filter out optimistic messages that have a matching real message (same user, body, similar time)
+    const optimistic = optimisticMessages.filter((o) => {
+      const hasMatch = messages.some(
+        (m) =>
+          m.senderId === o.senderId &&
+          m.body === o.body &&
+          Math.abs(m.createdAt - o.createdAt) < 5000
+      );
+      return !hasMatch;
+    });
+    return [...messages, ...optimistic].sort((a, b) => a.createdAt - b.createdAt);
+  }, [messages, optimisticMessages]);
 
   useEffect(() => {
     const serverIds = new Set(messages.map((m) => m._id));
-    setPendingMessages((prev) => {
-      if (prev.length === 0) return prev;
-      const next = prev.filter((p) => !p.serverId || !serverIds.has(p.serverId as any));
-      return next.length === prev.length ? prev : next;
-    });
+
+    // Detect AI moderation: a sent message we saw before is now gone
+    for (const id of sentMessageIdsRef.current) {
+      if (seenMessageIdsRef.current.has(id) && !serverIds.has(id as any)) {
+        // Message was seen but now deleted - AI moderation
+        setModerationWarning(
+          "Your message was removed because it violates our community guidelines."
+        );
+        sentMessageIdsRef.current.delete(id);
+        seenMessageIdsRef.current.delete(id);
+        break;
+      }
+      if (serverIds.has(id as any)) {
+        seenMessageIdsRef.current.add(id);
+      }
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -337,43 +357,42 @@ function InboxConversationView({
     const body = draft.trim();
     if (!body) return;
 
-    const pendingId = makePendingId();
-    const pendingCreatedAt = Date.now();
+    const optimisticId = makePendingId();
+    const optimisticCreatedAt = Date.now();
 
     setDraft("");
     setIsSending(true);
-    setPendingMessages((prev) => [
+
+    // Show message immediately (optimistic update)
+    setOptimisticMessages((prev) => [
       ...prev,
       {
-        _id: pendingId,
+        _id: optimisticId,
         conversationId,
         senderId: currentUserId,
         body,
-        createdAt: pendingCreatedAt,
+        createdAt: optimisticCreatedAt,
         displayName: null,
         isSystemMessage: false,
-        isPending: true,
       },
     ]);
+
     try {
       const res = await sendDmMessage({ conversationId, userId: currentUserId, body });
       if ((res as any)?.status === "blocked") {
-        setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+        // Remove optimistic message and show warning
+        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
         setModerationWarning((res as any)?.warning ?? "Message blocked.");
-        return;
-      }
-      if ((res as any)?.status === "sent") {
-        const serverId = (res as any)?.messageId as string | undefined;
-        if (serverId) {
-          setPendingMessages((prev) =>
-            prev.map((p) => (p._id === pendingId ? { ...p, serverId } : p))
-          );
-        } else {
-          setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+      } else {
+        // Message sent - track the ID to detect AI moderation deletions
+        const messageId = (res as any)?.messageId;
+        if (messageId) {
+          sentMessageIdsRef.current.add(messageId);
         }
+        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
       }
     } catch {
-      setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+      setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
       setModerationWarning("Message failed to send.");
     } finally {
       setIsSending(false);
@@ -434,7 +453,6 @@ function InboxConversationView({
         <div className="space-y-3">
           {displayMessages.map((m) => {
             const isSystem = (m as any).isSystemMessage;
-            const isPending = Boolean((m as any).isPending);
             const isMine = m.senderId === currentUserId && !isSystem;
             return (
               <div key={m._id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
@@ -445,12 +463,11 @@ function InboxConversationView({
                       : isMine
                         ? "bg-[#FAF5F2] text-[#3D3637]"
                         : "bg-white/10 text-white"
-                  } ${isPending ? "opacity-70" : ""}`}
+                  }`}
                 >
                   <div className={`text-[11px] mb-1 ${isSystem ? "text-blue-300" : "opacity-70"}`}>
                     {m.displayName ? `${m.displayName} • ` : ""}
                     {formatTime(m.createdAt)}
-                    {isPending ? " • Sending..." : ""}
                   </div>
                   <div className="whitespace-pre-wrap break-words">{m.body}</div>
                 </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, EyeOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,7 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
   const { shareName } = useDmNameConsent(conversationId, currentUserId);
   const { sendDmMessage, setDmNameConsent } = useDmMutations();
 
-  const [pendingMessages, setPendingMessages] = useState<
+  const [optimisticMessages, setOptimisticMessages] = useState<
     Array<{
       _id: string;
       conversationId: Id<"dmConversations">;
@@ -33,33 +33,55 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
       body: string;
       createdAt: number;
       displayName?: string | null;
-      isPending: true;
-      serverId?: string;
     }>
   >([]);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isTogglingName, setIsTogglingName] = useState(false);
   const [moderationWarning, setModerationWarning] = useState<string | null>(null);
+  // Track message IDs we've sent to detect AI moderation deletions
+  const sentMessageIdsRef = useRef<Set<string>>(new Set());
+  const seenMessageIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    setPendingMessages([]);
+    setOptimisticMessages([]);
     setModerationWarning(null);
+    sentMessageIdsRef.current.clear();
+    seenMessageIdsRef.current.clear();
   }, [conversationId]);
 
   const displayMessages = useMemo(() => {
-    const serverIds = new Set(messages.map((m) => m._id));
-    const pending = pendingMessages.filter((p) => !p.serverId || !serverIds.has(p.serverId as any));
-    return [...messages, ...pending].sort((a, b) => a.createdAt - b.createdAt);
-  }, [messages, pendingMessages]);
+    // Filter out optimistic messages that have a matching real message (same user, body, similar time)
+    const optimistic = optimisticMessages.filter((o) => {
+      const hasMatch = messages.some(
+        (m) =>
+          m.senderId === o.senderId &&
+          m.body === o.body &&
+          Math.abs(m.createdAt - o.createdAt) < 5000
+      );
+      return !hasMatch;
+    });
+    return [...messages, ...optimistic].sort((a, b) => a.createdAt - b.createdAt);
+  }, [messages, optimisticMessages]);
 
   useEffect(() => {
     const serverIds = new Set(messages.map((m) => m._id));
-    setPendingMessages((prev) => {
-      if (prev.length === 0) return prev;
-      const next = prev.filter((p) => !p.serverId || !serverIds.has(p.serverId as any));
-      return next.length === prev.length ? prev : next;
-    });
+
+    // Detect AI moderation: a sent message we saw before is now gone
+    for (const id of sentMessageIdsRef.current) {
+      if (seenMessageIdsRef.current.has(id) && !serverIds.has(id as any)) {
+        // Message was seen but now deleted - AI moderation
+        setModerationWarning(
+          "Your message was removed because it violates our community guidelines."
+        );
+        sentMessageIdsRef.current.delete(id);
+        seenMessageIdsRef.current.delete(id);
+        break;
+      }
+      if (serverIds.has(id as any)) {
+        seenMessageIdsRef.current.add(id);
+      }
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -80,42 +102,41 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
     const body = draft.trim();
     if (!body) return;
 
-    const pendingId = makePendingId();
-    const pendingCreatedAt = Date.now();
+    const optimisticId = makePendingId();
+    const optimisticCreatedAt = Date.now();
 
     setDraft("");
     setIsSending(true);
-    setPendingMessages((prev) => [
+
+    // Show message immediately (optimistic update)
+    setOptimisticMessages((prev) => [
       ...prev,
       {
-        _id: pendingId,
+        _id: optimisticId,
         conversationId,
         senderId: currentUserId,
         body,
-        createdAt: pendingCreatedAt,
+        createdAt: optimisticCreatedAt,
         displayName: null,
-        isPending: true,
       },
     ]);
+
     try {
       const res = await sendDmMessage({ conversationId, userId: currentUserId, body });
       if ((res as any)?.status === "blocked") {
-        setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+        // Remove optimistic message and show warning
+        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
         setModerationWarning((res as any)?.warning ?? "Message blocked.");
-        return;
-      }
-      if ((res as any)?.status === "sent") {
-        const serverId = (res as any)?.messageId as string | undefined;
-        if (serverId) {
-          setPendingMessages((prev) =>
-            prev.map((p) => (p._id === pendingId ? { ...p, serverId } : p))
-          );
-        } else {
-          setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+      } else {
+        // Message sent - track the ID to detect AI moderation deletions
+        const messageId = (res as any)?.messageId;
+        if (messageId) {
+          sentMessageIdsRef.current.add(messageId);
         }
+        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
       }
     } catch {
-      setPendingMessages((prev) => prev.filter((p) => p._id !== pendingId));
+      setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
       setModerationWarning("Message failed to send.");
     } finally {
       setIsSending(false);
@@ -172,7 +193,6 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
           <ScrollArea className="flex-1 p-4">
             <div className="space-y-3">
               {displayMessages.map((m) => {
-                const isPending = Boolean((m as any).isPending);
                 const isMine = m.senderId === currentUserId;
                 return (
                   <div
@@ -182,12 +202,11 @@ export function DmOverlay({ conversationId, currentUserId, openedAt, onClose }: 
                     <div
                       className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                         isMine ? "bg-[#FAF5F2] text-[#3D3637]" : "bg-white/10 text-white"
-                      } ${isPending ? "opacity-70" : ""}`}
+                      }`}
                     >
                       <div className="text-[11px] opacity-70 mb-1">
                         {m.displayName ? `${m.displayName} • ` : ""}
                         {formatTime(m.createdAt)}
-                        {isPending ? " • Sending..." : ""}
                       </div>
                       <div className="whitespace-pre-wrap break-words">{m.body}</div>
                     </div>
