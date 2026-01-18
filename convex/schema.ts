@@ -39,7 +39,8 @@ export default defineSchema({
   // Threads within spaces for group discussions
   spaceThreads: defineTable({
     spaceId: v.id("spaces"),
-    name: v.string(),
+    description: v.optional(v.string()), // Will be required after migration
+    name: v.optional(v.string()), // Deprecated: kept for backwards compatibility during migration
     createdBy: v.id("users"),
     createdAt: v.number(),
     lastActiveAt: v.number(),

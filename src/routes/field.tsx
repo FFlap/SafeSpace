@@ -48,7 +48,7 @@ function FieldPage() {
   const { space: selectedSpace } = useSpace(selectedSpaceId);
   const { threads } = useThreads(selectedSpaceId);
   const { presence } = useSpacePresence(selectedSpaceId);
-  const { memberThreadIds } = useMyThreadMemberships(user?._id ?? null);
+  useMyThreadMemberships(user?._id ?? null);
   const { createThread, joinThread, leaveThread } = useThreadMutations();
   const { requestDm } = useDmMutations();
   const { requests: incomingDmRequests } = useIncomingDmRequests(user?._id ?? null);
@@ -73,12 +73,12 @@ function FieldPage() {
   }, []);
 
   const handleCreateThread = useCallback(
-    async (name: string) => {
+    async (description: string) => {
       if (!selectedSpaceId || !user) return;
 
       const threadId = await createThread({
         spaceId: selectedSpaceId,
-        name,
+        description,
         userId: user._id,
       });
 
@@ -87,10 +87,11 @@ function FieldPage() {
     [selectedSpaceId, user, createThread]
   );
 
-  const handleJoinThread = useCallback(
+  const handleThreadClick = useCallback(
     async (threadId: Id<"spaceThreads">) => {
       if (!user) return;
 
+      // Join the thread for membership tracking
       await joinThread({
         threadId,
         userId: user._id,
@@ -352,11 +353,10 @@ function FieldPage() {
             presence={presence}
             currentUserId={user?._id ?? null}
             currentThreadId={currentThreadId}
-            memberThreadIds={memberThreadIds}
             onClose={handleCloseOverlay}
             onCloseThread={handleCloseThread}
             onCreateThread={handleCreateThread}
-            onJoinThread={handleJoinThread}
+            onThreadClick={handleThreadClick}
             onLeaveThread={handleLeaveThread}
             onRequestDm={handleRequestDm}
             onCurrentUserPositionChange={handleCurrentUserPositionChange}

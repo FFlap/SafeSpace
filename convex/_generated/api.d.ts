@@ -19,6 +19,7 @@ import type * as maintenance from "../maintenance.js";
 import type * as messages_actions from "../messages/actions.js";
 import type * as messages_mutations from "../messages/mutations.js";
 import type * as messages_queries from "../messages/queries.js";
+import type * as migrations_migrateThreadDescription from "../migrations/migrateThreadDescription.js";
 import type * as moderation_actions from "../moderation/actions.js";
 import type * as moderation_moderate from "../moderation/moderate.js";
 import type * as moderation_mutations from "../moderation/mutations.js";
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   "messages/actions": typeof messages_actions;
   "messages/mutations": typeof messages_mutations;
   "messages/queries": typeof messages_queries;
+  "migrations/migrateThreadDescription": typeof migrations_migrateThreadDescription;
   "moderation/actions": typeof moderation_actions;
   "moderation/moderate": typeof moderation_moderate;
   "moderation/mutations": typeof moderation_mutations;

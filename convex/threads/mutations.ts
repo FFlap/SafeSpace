@@ -4,7 +4,7 @@ import { v } from "convex/values";
 export const createThread = mutation({
   args: {
     spaceId: v.id("spaces"),
-    name: v.string(),
+    description: v.string(),
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
@@ -13,7 +13,7 @@ export const createThread = mutation({
     // Create the thread
     const threadId = await ctx.db.insert("spaceThreads", {
       spaceId: args.spaceId,
-      name: args.name,
+      description: args.description,
       createdBy: args.userId,
       createdAt: now,
       lastActiveAt: now,

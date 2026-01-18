@@ -1,17 +1,15 @@
 import { Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 interface ThreadItemProps {
   thread: {
     _id: Id<"spaceThreads">;
-    name: string;
+    description?: string;
+    name?: string; // Deprecated: for backwards compatibility
     memberCount: number;
     lastActiveAt: number;
   };
-  isMember: boolean;
-  onJoin: (threadId: Id<"spaceThreads">) => void;
-  onLeave: (threadId: Id<"spaceThreads">) => void;
+  onClick: (threadId: Id<"spaceThreads">) => void;
 }
 
 function formatTimeAgo(timestamp: number): string {
@@ -29,44 +27,23 @@ function formatTimeAgo(timestamp: number): string {
 
 export function ThreadItem({
   thread,
-  isMember,
-  onJoin,
-  onLeave,
+  onClick,
 }: ThreadItemProps) {
   return (
-    <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/12 border border-white/5 hover:border-white/15 transition-colors">
-      <div className="flex-1 min-w-0">
-        <h4 className="text-sm font-medium text-white truncate">{thread.name}</h4>
-        <div className="flex items-center gap-2 mt-1">
-          <span className="flex items-center gap-1 text-xs text-white/60">
-            <Users className="w-3 h-3" />
-            {thread.memberCount}
-          </span>
-          <span className="text-xs text-white/40">
-            {formatTimeAgo(thread.lastActiveAt)}
-          </span>
-        </div>
+    <div
+      className="p-3 rounded-2xl bg-white/5 hover:bg-white/12 border border-white/5 hover:border-white/15 transition-colors cursor-pointer min-w-0 w-full grid grid-cols-1 gap-1"
+      onClick={() => onClick(thread._id)}
+    >
+      <h4 className="text-sm font-medium text-white overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{thread.description ?? thread.name}</h4>
+      <div className="flex items-center gap-2">
+        <span className="flex items-center gap-1 text-xs text-white/60 flex-shrink-0">
+          <Users className="w-3 h-3" />
+          {thread.memberCount}
+        </span>
+        <span className="text-xs text-white/40 flex-shrink-0">
+          {formatTimeAgo(thread.lastActiveAt)}
+        </span>
       </div>
-
-      {isMember ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onLeave(thread._id)}
-          className="text-white/70 hover:text-white hover:bg-white/10"
-        >
-          Leave
-        </Button>
-      ) : (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onJoin(thread._id)}
-          className="text-[#FAF5F2] hover:text-white hover:bg-white/10"
-        >
-          Join
-        </Button>
-      )}
     </div>
   );
 }
