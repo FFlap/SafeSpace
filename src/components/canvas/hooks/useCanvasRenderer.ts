@@ -464,9 +464,19 @@ export function useCanvasRenderer({
     [hitTest, onSpaceClick]
   );
 
+  const getSpacePosition = useCallback(
+    (spaceId: string) => {
+      const space = spaces.find((item) => item._id === spaceId);
+      if (!space) return null;
+      return physicsStateRef.current.positions.get(space._id) ?? space.position;
+    },
+    [spaces]
+  );
+
   return {
     canvasRef,
     handleClick,
     hitTest,
+    getSpacePosition,
   };
 }

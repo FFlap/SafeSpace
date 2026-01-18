@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useCamera } from "./hooks/useCamera";
 import { useCanvasRenderer, type SpaceData } from "./hooks/useCanvasRenderer";
 import { useKeyboardNav } from "./hooks/useKeyboardNav";
@@ -9,6 +9,8 @@ interface BubbleFieldProps {
   onSpaceClick?: (spaceId: string) => void;
   overlayOpen?: boolean;
   onEscape?: () => void;
+  focusSpaceId?: string | null;
+  focusRequestId?: number;
 }
 
 export function BubbleField({
@@ -16,13 +18,17 @@ export function BubbleField({
   onSpaceClick,
   overlayOpen = false,
   onEscape,
+  focusSpaceId,
+  focusRequestId,
 }: BubbleFieldProps) {
-  const { camera, pan, zoomBy } = useCamera({ zoom: 0.45 });
+  const { camera, pan, zoomBy, setCamera } = useCamera({ zoom: 0.45 });
   const [isDragging, setIsDragging] = useState(false);
   const [hoveredSpaceId, setHoveredSpaceId] = useState<string | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
+  const cameraRef = useRef(camera);
+  const focusAnimationRef = useRef<number | null>(null);
 
-  const { canvasRef, handleClick, hitTest } = useCanvasRenderer({
+  const { canvasRef, handleClick, hitTest, getSpacePosition } = useCanvasRenderer({
     camera,
     spaces,
     onSpaceClick,
@@ -30,6 +36,52 @@ export function BubbleField({
   });
 
   useDisableBrowserZoom(true);
+
+  useEffect(() => {
+    cameraRef.current = camera;
+  }, [camera]);
+
+  useEffect(() => {
+    if (!focusSpaceId || overlayOpen) return;
+    const target = getSpacePosition(focusSpaceId);
+    if (!target) return;
+
+    if (focusAnimationRef.current) {
+      cancelAnimationFrame(focusAnimationRef.current);
+    }
+
+    const { x: startX, y: startY } = cameraRef.current;
+    const deltaX = target.x - startX;
+    const deltaY = target.y - startY;
+    const start = performance.now();
+    const duration = 520;
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+    const animate = (time: number) => {
+      const progress = Math.min(1, Math.max(0, (time - start) / duration));
+      const eased = easeOutCubic(progress);
+      setCamera((prev) => ({
+        ...prev,
+        x: startX + deltaX * eased,
+        y: startY + deltaY * eased,
+      }));
+
+      if (progress < 1) {
+        focusAnimationRef.current = requestAnimationFrame(animate);
+      } else {
+        focusAnimationRef.current = null;
+      }
+    };
+
+    focusAnimationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (focusAnimationRef.current) {
+        cancelAnimationFrame(focusAnimationRef.current);
+        focusAnimationRef.current = null;
+      }
+    };
+  }, [focusSpaceId, focusRequestId, getSpacePosition, overlayOpen, setCamera]);
 
   // Keyboard navigation
   useKeyboardNav({
