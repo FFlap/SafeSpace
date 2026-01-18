@@ -190,9 +190,8 @@ export const computeLayout = internalAction({
           let fx = (dx / dist) * force;
           let fy = (dy / dist) * force;
 
+
           // Collision detection
-          const radiusI = getBubbleRadius(spaces[i].activeUserCount);
-          const radiusJ = getBubbleRadius(spaces[j].activeUserCount);
           const minDist = radiusI + radiusJ + padding;
 
           if (dist < minDist) {
