@@ -17,43 +17,40 @@ import type { Id } from "../../../convex/_generated/dataModel";
 
 interface Thread {
   _id: Id<"spaceThreads">;
-  name: string;
+  description?: string;
+  name?: string; // Deprecated: for backwards compatibility
   memberCount: number;
   lastActiveAt: number;
 }
 
 interface ThreadSidebarProps {
   threads: Thread[];
-  memberThreadIds: Set<string>;
-  onCreateThread: (name: string) => void;
-  onJoinThread: (threadId: Id<"spaceThreads">) => void;
-  onLeaveThread: (threadId: Id<"spaceThreads">) => void;
+  onCreateThread: (description: string) => void;
+  onThreadClick: (threadId: Id<"spaceThreads">) => void;
 }
 
 export function ThreadSidebar({
   threads,
-  memberThreadIds,
   onCreateThread,
-  onJoinThread,
-  onLeaveThread,
+  onThreadClick,
 }: ThreadSidebarProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [newThreadName, setNewThreadName] = useState("");
+  const [newThreadDescription, setNewThreadDescription] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const handleCreateThread = () => {
-    if (newThreadName.trim()) {
-      onCreateThread(newThreadName.trim());
-      setNewThreadName("");
+    if (newThreadDescription.trim()) {
+      onCreateThread(newThreadDescription.trim());
+      setNewThreadDescription("");
       setDialogOpen(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#3D3637]/55 border-r border-white/10 backdrop-blur-2xl shadow-[0_0_40px_rgba(0,0,0,0.15)]">
-      <div className="p-4 space-y-4">
+    <div className="flex flex-col h-full w-full overflow-hidden bg-[#3D3637]/55 border-r border-white/10 backdrop-blur-2xl shadow-[0_0_40px_rgba(0,0,0,0.15)]">
+      <div className="p-4 space-y-4 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Threads</h3>
+          <h3 className="text-lg font-semibold text-white">Talks</h3>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button
@@ -66,13 +63,13 @@ export function ThreadSidebar({
             </DialogTrigger>
             <DialogContent className="bg-[#3D3637]/90 border-white/10 backdrop-blur-xl">
               <DialogHeader>
-                <DialogTitle className="text-white">Create Thread</DialogTitle>
+                <DialogTitle className="text-white">Start a Talk</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 <Input
-                  placeholder="Thread name..."
-                  value={newThreadName}
-                  onChange={(e) => setNewThreadName(e.target.value)}
+                  placeholder="What do you want to talk about?"
+                  value={newThreadDescription}
+                  onChange={(e) => setNewThreadDescription(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleCreateThread();
                   }}
@@ -88,7 +85,7 @@ export function ThreadSidebar({
                   </Button>
                   <Button
                     onClick={handleCreateThread}
-                    disabled={!newThreadName.trim()}
+                    disabled={!newThreadDescription.trim()}
                     className="bg-white/90 text-slate-900 hover:bg-white"
                   >
                     Create
@@ -104,14 +101,14 @@ export function ThreadSidebar({
 
       <Separator className="bg-white/10" />
 
-      <ScrollArea className="flex-1 px-4 py-2 backdrop-blur">
-        <ThreadList
-          threads={threads}
-          memberThreadIds={memberThreadIds}
-          onJoin={onJoinThread}
-          onLeave={onLeaveThread}
-          searchTerm={searchTerm}
-        />
+      <ScrollArea className="flex-1 min-h-0 px-4 py-2 backdrop-blur">
+        <div className="w-full min-w-0">
+          <ThreadList
+            threads={threads}
+            onThreadClick={onThreadClick}
+            searchTerm={searchTerm}
+          />
+        </div>
       </ScrollArea>
     </div>
   );

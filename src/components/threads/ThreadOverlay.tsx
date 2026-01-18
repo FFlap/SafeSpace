@@ -21,7 +21,7 @@ interface PresenceUser {
 
 interface ThreadOverlayProps {
   threadId: Id<"spaceThreads">;
-  threadName: string;
+  threadDescription: string;
   presence: PresenceUser[];
   currentUserId: Id<"users"> | null;
   joinedAt: number;
@@ -358,7 +358,7 @@ function ThreadParticipantsCanvas({
 
 export function ThreadOverlay({
   threadId,
-  threadName,
+  threadDescription,
   presence,
   currentUserId,
   joinedAt,
@@ -559,13 +559,21 @@ export function ThreadOverlay({
 
       <div className="absolute left-0 right-0 bottom-0 top-16 flex">
         {/* Chat */}
-        <div className="w-[420px] max-w-[90vw] h-full bg-[#3D3637]/90 border-r border-white/10 flex flex-col">
-          <div className="p-4 flex items-center justify-between border-b border-white/10">
-            <div className="min-w-0">
-              <div className="text-xs text-white/60">Thread</div>
-              <div className="text-base font-semibold text-white truncate">{threadName}</div>
+        <div className="w-[300px] h-full bg-[#3D3637]/90 border-r border-white/10 flex flex-col">
+          <div className="p-3 border-b border-white/10 flex flex-col max-h-[40vh]">
+            <div className="flex items-center justify-between mb-2 flex-shrink-0">
+              <div className="text-xs text-white/60">Talk</div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="text-white/80 hover:text-white hover:bg-white/10 h-6 w-6 p-0"
+              >
+                <X className="w-4 h-4" />
+              </Button>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="text-sm font-medium text-white mb-3 overflow-y-auto flex-1 min-h-0">{threadDescription}</div>
+            <div className="flex items-center gap-1 flex-shrink-0">
               <Button
                 variant="ghost"
                 size="sm"
@@ -583,29 +591,20 @@ export function ThreadOverlay({
                     setIsTogglingName(false);
                   }
                 }}
-                className="text-white/70 hover:text-white hover:bg-white/10"
+                className="text-white/70 hover:text-white hover:bg-white/10 text-xs h-7 px-2"
                 title="Reveal or hide your name in this thread"
               >
-                {shareName ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
-                {shareName ? "Hide name" : "Share name"}
+                {shareName ? <EyeOff className="w-3 h-3 mr-1" /> : <Eye className="w-3 h-3 mr-1" />}
+                {shareName ? "Hide" : "Share"}
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={onLeave}
-                className="text-white/70 hover:text-white hover:bg-white/10"
+                className="text-white/70 hover:text-white hover:bg-white/10 text-xs h-7 px-2"
               >
-                <LogOut className="w-4 h-4 mr-1" />
+                <LogOut className="w-3 h-3 mr-1" />
                 Leave
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                className="text-white/80 hover:text-white hover:bg-white/10"
-              >
-                <X className="w-4 h-4 mr-1" />
-                Close
               </Button>
             </div>
           </div>
