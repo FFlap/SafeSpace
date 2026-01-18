@@ -31,6 +31,7 @@ interface SpeckFieldProps {
   onScreenToWorldReady?: (
     screenToWorld: (x: number, y: number) => { x: number; y: number }
   ) => void;
+  useMainCanvasBackground?: boolean;
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -156,6 +157,7 @@ export function SpeckField({
   initialZoom,
   onViewTransform,
   onScreenToWorldReady,
+  useMainCanvasBackground = false,
 }: SpeckFieldProps) {
   const { camera, pan, zoomBy, screenToWorld, worldToScreen, setCamera } = useCamera();
   const [isDragging, setIsDragging] = useState(false);
@@ -377,7 +379,21 @@ export function SpeckField({
       }
 
       // Background (white grid outside bubble)
-      ctx.fillStyle = outsideColor;
+      if (useMainCanvasBackground) {
+        const bgGradient = ctx.createRadialGradient(
+          renderWidth / 2,
+          renderHeight / 2,
+          0,
+          renderWidth / 2,
+          renderHeight / 2,
+          Math.max(renderWidth, renderHeight)
+        );
+        bgGradient.addColorStop(0, "#fdfbf7");
+        bgGradient.addColorStop(1, "#f5f0eb");
+        ctx.fillStyle = bgGradient;
+      } else {
+        ctx.fillStyle = outsideColor;
+      }
       ctx.fillRect(0, 0, renderWidth, renderHeight);
 
       const centerX = renderWidth / 2;
@@ -392,33 +408,34 @@ export function SpeckField({
       const topWorld = camera.y - centerY / camera.zoom;
       const bottomWorld = camera.y + centerY / camera.zoom;
 
-      const drawGrid = (spacingWorld: number, strokeStyle: string) => {
+      const drawDots = (spacingWorld: number, fillStyle: string) => {
         if (!Number.isFinite(spacingWorld) || spacingWorld <= 0) return;
-        ctx.beginPath();
 
         const startX = Math.floor(leftWorld / spacingWorld) * spacingWorld;
         const endX = Math.ceil(rightWorld / spacingWorld) * spacingWorld;
-        for (let x = startX; x <= endX; x += spacingWorld) {
-          const sx = (x - camera.x) * camera.zoom + centerX;
-          ctx.moveTo(sx, 0);
-          ctx.lineTo(sx, renderHeight);
-        }
-
         const startY = Math.floor(topWorld / spacingWorld) * spacingWorld;
         const endY = Math.ceil(bottomWorld / spacingWorld) * spacingWorld;
-        for (let y = startY; y <= endY; y += spacingWorld) {
-          const sy = (y - camera.y) * camera.zoom + centerY;
-          ctx.moveTo(0, sy);
-          ctx.lineTo(renderWidth, sy);
-        }
 
-        ctx.strokeStyle = strokeStyle;
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        ctx.fillStyle = fillStyle;
+
+        for (let x = startX; x <= endX; x += spacingWorld) {
+          for (let y = startY; y <= endY; y += spacingWorld) {
+            const sx = (x - camera.x) * camera.zoom + centerX;
+            const sy = (y - camera.y) * camera.zoom + centerY;
+
+            if (sx < -5 || sx > renderWidth + 5 || sy < -5 || sy > renderHeight + 5) {
+              continue;
+            }
+
+            ctx.beginPath();
+            ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
       };
 
       const gridSpacing = minorScreen >= 18 ? minorSpacing : majorSpacing;
-      drawGrid(gridSpacing, "rgba(15, 23, 42, 0.03)");
+      drawDots(gridSpacing, "rgba(92, 74, 66, 0.08)");
 
       const bubbleCenter = worldToScreen(0, 0, renderWidth, renderHeight);
       const bubbleScreenRadius = bubbleRadius * camera.zoom;

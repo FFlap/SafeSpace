@@ -23,8 +23,9 @@ export function ThreadList({
   onLeave,
   searchTerm,
 }: ThreadListProps) {
+  const normalizedSearch = (searchTerm ?? "").toLowerCase();
   const filteredThreads = threads.filter((thread) =>
-    thread.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (thread.name ?? "").toLowerCase().includes(normalizedSearch)
   );
 
   if (filteredThreads.length === 0) {

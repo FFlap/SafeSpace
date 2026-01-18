@@ -102,7 +102,7 @@ export function SpaceOverlay({
 
   const bubbleColor = useMemo(() => {
     const rgb = hexToRgb(spaceColor);
-    return rgb ? rgbToHex(mixWithWhite(rgb, 0.8)) : spaceColor;
+    return rgb ? rgbToHex(mixWithWhite(rgb, 0.9)) : spaceColor;
   }, [spaceColor]);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -224,25 +224,27 @@ export function SpaceOverlay({
     <div className="fixed inset-0 z-50">
       {/* Bubble canvas */}
       <div className="absolute inset-0">
-        <SpeckField
-          presence={presence}
-          currentUserId={currentUserId}
-          currentThreadId={currentThreadId}
-          bubbleColor={bubbleColor}
-          bubbleRadius={bubbleRadius}
-          outsideColor="#ffffff"
-          currentUserPosition={currentUserPosition}
-          speechBubbles={speechBubbles}
-          keyboardEnabled={false}
-          zoomBounds={zoomBounds}
-          initialZoom={minZoom}
-          onSpeckClick={(userId) => {
-            if (!onRequestDm || !currentUserId) return;
-            if (userId === currentUserId) return;
-            void Promise.resolve(onRequestDm(userId)).catch(() => {});
-          }}
-          onViewTransform={handleViewTransform}
-        />
+          <SpeckField
+            presence={presence}
+            currentUserId={currentUserId}
+            currentThreadId={currentThreadId}
+            bubbleColor={bubbleColor}
+            bubbleRadius={bubbleRadius}
+            outsideColor="#ffffff"
+            useMainCanvasBackground
+            currentUserPosition={currentUserPosition}
+            speechBubbles={speechBubbles}
+            keyboardEnabled={false}
+            zoomBounds={zoomBounds}
+            initialZoom={minZoom}
+            onSpeckClick={(userId) => {
+              if (!onRequestDm || !currentUserId) return;
+              if (userId === currentUserId) return;
+              void Promise.resolve(onRequestDm(userId)).catch(() => {});
+            }}
+            onViewTransform={handleViewTransform}
+          />
+
         <div className="absolute inset-y-16 left-0 w-[320px] bg-gradient-to-r from-[#3D3637]/65 via-[#3D3637]/30 to-transparent pointer-events-none" />
       </div>
 
@@ -360,7 +362,7 @@ export function SpaceOverlay({
           currentUserId={currentUserId}
           joinedAt={threadJoinedAt}
           currentUserPosition={currentUserPosition}
-          spaceColor={spaceColor}
+          bubbleColor={bubbleColor}
           onRequestDm={onRequestDm}
           onClose={onCloseThread}
           onLeave={() => {

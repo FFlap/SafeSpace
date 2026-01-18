@@ -26,7 +26,7 @@ interface ThreadOverlayProps {
   currentUserId: Id<"users"> | null;
   joinedAt: number;
   currentUserPosition?: { x: number; y: number };
-  spaceColor: string;
+  bubbleColor: string;
   onRequestDm?: (userId: Id<"users">) => void;
   onClose: () => void;
   onLeave: () => void;
@@ -125,13 +125,13 @@ function ThreadParticipantsCanvas({
   participants,
   speechBubbles,
   currentUserPosition,
-  spaceColor,
+  bubbleColor,
   onUserClick,
 }: {
   participants: Participant[];
   speechBubbles?: Array<{ userId: Id<"users">; body: string; createdAt: number }>;
   currentUserPosition?: { x: number; y: number };
-  spaceColor: string;
+  bubbleColor: string;
   onUserClick?: (userId: Id<"users">) => void;
 }) {
 
@@ -178,7 +178,7 @@ function ThreadParticipantsCanvas({
     const height = dimensions.height;
     if (width === 0 || height === 0) return;
 
-    ctx.fillStyle = spaceColor;
+    ctx.fillStyle = bubbleColor;
     ctx.fillRect(0, 0, width, height);
 
     const centerX = width / 2;
@@ -281,7 +281,7 @@ function ThreadParticipantsCanvas({
         drawSpeechBubble(ctx, x, y, bubble.body);
       }
     }
-  }, [participants, speechBubbles, currentUserPosition, dimensions, camera.zoom, worldToScreen, spaceColor]);
+  }, [participants, speechBubbles, currentUserPosition, dimensions, camera.zoom, worldToScreen, bubbleColor]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -367,7 +367,7 @@ export function ThreadOverlay({
   currentUserId,
   joinedAt,
   currentUserPosition,
-  spaceColor,
+  bubbleColor,
   onRequestDm,
   onClose,
   onLeave,
@@ -682,7 +682,7 @@ export function ThreadOverlay({
             participants={participants}
             speechBubbles={speechBubbles}
             currentUserPosition={currentUserPosition}
-            spaceColor={spaceColor}
+            bubbleColor={bubbleColor}
             onUserClick={(userId) => {
               if (!onRequestDm || !currentUserId) return;
               if (userId === currentUserId) return;
