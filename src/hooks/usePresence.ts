@@ -53,7 +53,11 @@ export function usePresence({
   useEffect(() => {
     if (!enabled || !spaceId || !userId) return;
 
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
     const tick = () => {
+      if (cancelled) return;
       const newPos = getCurrentPosition();
       positionRef.current = newPos;
       setPosition(newPos);
@@ -64,13 +68,17 @@ export function usePresence({
         position: positionRef.current,
         currentThreadId: currentThreadIdRef.current ?? undefined,
       });
+
+      timeoutId = setTimeout(tick, 1000);
     };
 
     tick();
-    const interval = setInterval(tick, 250);
 
     return () => {
-      clearInterval(interval);
+      cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       leaveSpace({ spaceId, userId });
     };
   }, [
