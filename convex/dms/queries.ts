@@ -128,7 +128,10 @@ export const listDmMessages = query({
 
     return selected.map((m: any) => ({
       ...m,
-      displayName: nameByUserId.get(m.senderId) ?? null,
+      displayName: m.isSystemMessage
+        ? "Safe Space AI"
+        : (nameByUserId.get(m.senderId) ?? null),
+      isSystemMessage: m.isSystemMessage ?? false,
     }));
   },
 });

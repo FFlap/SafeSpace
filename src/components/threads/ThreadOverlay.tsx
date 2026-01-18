@@ -377,13 +377,62 @@ export function ThreadOverlay({
   const { sendThreadMessage, setThreadNameConsent } = useThreadMessageMutations();
   const { shareName } = useThreadNameConsent(threadId, currentUserId);
 
+  const [optimisticMessages, setOptimisticMessages] = useState<
+    Array<{
+      _id: string;
+      threadId: Id<"spaceThreads">;
+      userId: Id<"users">;
+      body: string;
+      createdAt: number;
+      displayName?: string | null;
+      isSystemMessage?: boolean;
+    }>
+  >([]);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isTogglingName, setIsTogglingName] = useState(false);
+  const [moderationWarning, setModerationWarning] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const chatNearBottomRef = useRef(true);
+  // Track message IDs we've sent to detect AI moderation deletions
+  const sentMessageIdsRef = useRef<Set<string>>(new Set());
+  const seenMessageIdsRef = useRef<Set<string>>(new Set());
+
+  const displayMessages = useMemo(() => {
+    // Filter out optimistic messages that have a matching real message (same user, body, similar time)
+    const optimistic = optimisticMessages.filter((o) => {
+      const hasMatch = messages.some(
+        (m) =>
+          m.userId === o.userId &&
+          m.body === o.body &&
+          Math.abs(m.createdAt - o.createdAt) < 5000
+      );
+      return !hasMatch;
+    });
+    return [...messages, ...optimistic].sort((a, b) => a.createdAt - b.createdAt);
+  }, [messages, optimisticMessages]);
+
+  useEffect(() => {
+    const serverIds = new Set(messages.map((m) => m._id));
+
+    // Detect AI moderation: a sent message we saw before is now gone
+    for (const id of sentMessageIdsRef.current) {
+      if (seenMessageIdsRef.current.has(id) && !serverIds.has(id)) {
+        // Message was seen but now deleted - AI moderation
+        setModerationWarning(
+          "Your message was removed because it violates our community guidelines."
+        );
+        sentMessageIdsRef.current.delete(id);
+        seenMessageIdsRef.current.delete(id);
+        break;
+      }
+      if (serverIds.has(id)) {
+        seenMessageIdsRef.current.add(id);
+      }
+    }
+  }, [messages]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 250);
@@ -392,7 +441,17 @@ export function ThreadOverlay({
 
   useEffect(() => {
     chatNearBottomRef.current = true;
+    setOptimisticMessages([]);
+    setModerationWarning(null);
+    sentMessageIdsRef.current.clear();
+    seenMessageIdsRef.current.clear();
   }, [threadId]);
+
+  useEffect(() => {
+    if (!moderationWarning) return;
+    const id = window.setTimeout(() => setModerationWarning(null), 6000);
+    return () => window.clearTimeout(id);
+  }, [moderationWarning]);
 
   const participants = useMemo<Participant[]>(() => {
     const activeIds = new Set<string>();
@@ -415,14 +474,15 @@ export function ThreadOverlay({
 
   const speechBubbles = useMemo(() => {
     const byUser = new Map<string, { userId: Id<"users">; body: string; createdAt: number }>();
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
+    for (let i = displayMessages.length - 1; i >= 0; i--) {
+      const m = displayMessages[i];
       if (now - m.createdAt > 2800) continue;
+      if ((m as any).isSystemMessage) continue;
       if (byUser.has(m.userId)) continue;
       byUser.set(m.userId, { userId: m.userId, body: m.body, createdAt: m.createdAt });
     }
     return [...byUser.values()];
-  }, [messages, now]);
+  }, [displayMessages, now]);
 
   const handleChatScroll = () => {
     const el = chatScrollRef.current;
@@ -434,7 +494,7 @@ export function ThreadOverlay({
 
   useEffect(() => {
     const bottom = chatBottomRef.current;
-    const last = messages[messages.length - 1];
+    const last = displayMessages[displayMessages.length - 1];
     if (!bottom || !last) return;
 
     const shouldStick =
@@ -442,16 +502,57 @@ export function ThreadOverlay({
     if (shouldStick) {
       bottom.scrollIntoView({ block: "end", behavior: "auto" });
     }
-  }, [messages, currentUserId]);
+  }, [displayMessages, currentUserId]);
+
+  const makePendingId = () => {
+    const randomPart =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? (crypto as any).randomUUID()
+        : Math.random().toString(16).slice(2);
+    return `pending-${Date.now()}-${randomPart}`;
+  };
 
   const handleSend = async () => {
     const body = draft.trim();
     if (!body || !currentUserId) return;
 
+    const optimisticId = makePendingId();
+    const optimisticCreatedAt = Date.now();
+
     setDraft("");
     setIsSending(true);
+
+    // Show message immediately (optimistic update)
+    setOptimisticMessages((prev) => [
+      ...prev,
+      {
+        _id: optimisticId,
+        threadId,
+        userId: currentUserId,
+        body,
+        createdAt: optimisticCreatedAt,
+        displayName: null,
+        isSystemMessage: false,
+      },
+    ]);
+
     try {
-      await sendThreadMessage({ threadId, userId: currentUserId, body });
+      const res = await sendThreadMessage({ threadId, userId: currentUserId, body });
+      if ((res as any)?.status === "blocked") {
+        // Remove optimistic message and show warning
+        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
+        setModerationWarning((res as any)?.warning ?? "Message blocked.");
+      } else {
+        // Message sent - track the ID to detect AI moderation deletions
+        const messageId = (res as any)?.messageId;
+        if (messageId) {
+          sentMessageIdsRef.current.add(messageId);
+        }
+        setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
+      }
+    } catch {
+      setOptimisticMessages((prev) => prev.filter((o) => o._id !== optimisticId));
+      setModerationWarning("Message failed to send.");
     } finally {
       setIsSending(false);
     }
@@ -520,8 +621,9 @@ export function ThreadOverlay({
             className="flex-1 min-h-0 overflow-y-auto p-4"
           >
             <div className="space-y-3">
-              {messages.map((m) => {
-                const isMine = Boolean(currentUserId) && m.userId === currentUserId;
+              {displayMessages.map((m) => {
+                const isSystem = (m as any).isSystemMessage;
+                const isMine = Boolean(currentUserId) && m.userId === currentUserId && !isSystem;
                 return (
                   <div
                     key={m._id}
@@ -529,12 +631,14 @@ export function ThreadOverlay({
                   >
                     <div
                       className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
-                        isMine
-                          ? "bg-[#FAF5F2] text-[#3D3637]"
-                          : "bg-white/10 text-white"
+                        isSystem
+                          ? "bg-blue-500/20 text-blue-100 border border-blue-400/30"
+                          : isMine
+                            ? "bg-[#FAF5F2] text-[#3D3637]"
+                            : "bg-white/10 text-white"
                       }`}
                     >
-                      <div className="text-[11px] opacity-70 mb-1">
+                      <div className={`text-[11px] mb-1 ${isSystem ? "text-blue-300" : "opacity-70"}`}>
                         {m.displayName ? `${m.displayName} • ` : ""}
                         {formatTime(m.createdAt)}
                       </div>
@@ -547,23 +651,28 @@ export function ThreadOverlay({
             </div>
           </div>
 
-          <div className="p-4 border-t border-white/10 flex gap-2">
-            <Input
-              value={draft}
-              placeholder="Say something..."
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSend();
-              }}
-              className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
-            />
-            <Button
-              onClick={handleSend}
-              disabled={isSending || !draft.trim() || !currentUserId}
-              className="bg-[#FAF5F2] text-[#3D3637] hover:bg-[#FAF5F2]/90"
-            >
-              Send
-            </Button>
+          <div className="border-t border-white/10">
+            {moderationWarning && (
+              <div className="px-4 pt-3 text-xs text-red-200">{moderationWarning}</div>
+            )}
+            <div className="p-4 flex gap-2">
+              <Input
+                value={draft}
+                placeholder="Say something..."
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSend();
+                }}
+                className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+              />
+              <Button
+                onClick={handleSend}
+                disabled={isSending || !draft.trim() || !currentUserId}
+                className="bg-[#FAF5F2] text-[#3D3637] hover:bg-[#FAF5F2]/90"
+              >
+                Send
+              </Button>
+            </div>
           </div>
         </div>
 

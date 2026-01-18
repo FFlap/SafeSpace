@@ -45,7 +45,10 @@ export const listThreadMessages = query({
 
     return selected.map((m: any) => ({
       ...m,
-      displayName: nameByUserId.get(m.userId) ?? null,
+      displayName: m.isSystemMessage
+        ? "Safe Space AI"
+        : (nameByUserId.get(m.userId) ?? null),
+      isSystemMessage: m.isSystemMessage ?? false,
     }));
   },
 });
