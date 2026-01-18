@@ -22,30 +22,10 @@ export const getSpace = query({
   },
 });
 
-export const listSpacesWithPresence = query({
+export const listSpaces = query({
   args: {},
   handler: async (ctx) => {
-    const spaces = await ctx.db.query("spaces").collect();
-    const now = Date.now();
-    const thirtySecondsAgo = now - 30000;
-
-    const spacesWithCounts = await Promise.all(
-      spaces.map(async (space) => {
-        const presence = await ctx.db
-          .query("spacePresence")
-          .withIndex("by_space", (q) => q.eq("spaceId", space._id))
-          .collect();
-
-        const activeUsers = presence.filter((p) => p.lastSeen > thirtySecondsAgo);
-
-        return {
-          ...space,
-          activeUserCount: activeUsers.length,
-        };
-      })
-    );
-
-    return spacesWithCounts;
+    return await ctx.db.query("spaces").collect();
   },
 });
 
