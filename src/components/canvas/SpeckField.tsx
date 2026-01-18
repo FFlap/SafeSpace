@@ -426,15 +426,34 @@ export function SpeckField({
       // Bubble background
       if (bubbleColor) {
         const rgb = hexToRgb(bubbleColor);
-        const calm = rgb ? mixWithWhite(rgb, 0.9) : null;
-        const border = calm ? mixWithBlack(calm, 0.08) : null;
+        const calm = rgb ? mixWithWhite(rgb, 0.8) : null;
+        const border = calm ? mixWithBlack(calm, 0.12) : null;
+        const glow = calm ? mixWithWhite(calm, 0.35) : null;
 
-        if (calm) {
+        if (calm && glow) {
           ctx.save();
           ctx.beginPath();
           ctx.arc(bubbleCenter.x, bubbleCenter.y, bubbleScreenRadius, 0, Math.PI * 2);
           ctx.clip();
-          ctx.fillStyle = `rgb(${clamp255(calm.r)}, ${clamp255(calm.g)}, ${clamp255(calm.b)})`;
+
+          const fillGradient = ctx.createRadialGradient(
+            bubbleCenter.x - bubbleScreenRadius * 0.2,
+            bubbleCenter.y - bubbleScreenRadius * 0.2,
+            bubbleScreenRadius * 0.2,
+            bubbleCenter.x,
+            bubbleCenter.y,
+            bubbleScreenRadius
+          );
+          fillGradient.addColorStop(
+            0,
+            `rgba(${clamp255(glow.r)}, ${clamp255(glow.g)}, ${clamp255(glow.b)}, 0.95)`
+          );
+          fillGradient.addColorStop(
+            1,
+            `rgb(${clamp255(calm.r)}, ${clamp255(calm.g)}, ${clamp255(calm.b)})`
+          );
+
+          ctx.fillStyle = fillGradient;
           ctx.fillRect(0, 0, renderWidth, renderHeight);
           ctx.restore();
         }

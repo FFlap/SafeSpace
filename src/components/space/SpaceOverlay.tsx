@@ -100,6 +100,11 @@ export function SpaceOverlay({
     return rgb ? rgbToHex(mixWithWhite(rgb, 0.9)) : spaceColor;
   }, [spaceColor]);
 
+  const bubbleColor = useMemo(() => {
+    const rgb = hexToRgb(spaceColor);
+    return rgb ? rgbToHex(mixWithWhite(rgb, 0.8)) : spaceColor;
+  }, [spaceColor]);
+
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newThreadName, setNewThreadName] = useState("");
   const [threadJoinedAt, setThreadJoinedAt] = useState<number>(Date.now());
@@ -223,7 +228,7 @@ export function SpaceOverlay({
           presence={presence}
           currentUserId={currentUserId}
           currentThreadId={currentThreadId}
-          bubbleColor={spaceColor}
+          bubbleColor={bubbleColor}
           bubbleRadius={bubbleRadius}
           outsideColor="#ffffff"
           currentUserPosition={currentUserPosition}
@@ -355,6 +360,7 @@ export function SpaceOverlay({
           currentUserId={currentUserId}
           joinedAt={threadJoinedAt}
           currentUserPosition={currentUserPosition}
+          spaceColor={spaceColor}
           onRequestDm={onRequestDm}
           onClose={onCloseThread}
           onLeave={() => {

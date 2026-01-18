@@ -26,10 +26,12 @@ interface ThreadOverlayProps {
   currentUserId: Id<"users"> | null;
   joinedAt: number;
   currentUserPosition?: { x: number; y: number };
+  spaceColor: string;
   onRequestDm?: (userId: Id<"users">) => void;
   onClose: () => void;
   onLeave: () => void;
 }
+
 
 function hashString(input: string): number {
   let hash = 2166136261;
@@ -123,13 +125,16 @@ function ThreadParticipantsCanvas({
   participants,
   speechBubbles,
   currentUserPosition,
+  spaceColor,
   onUserClick,
 }: {
   participants: Participant[];
   speechBubbles?: Array<{ userId: Id<"users">; body: string; createdAt: number }>;
   currentUserPosition?: { x: number; y: number };
+  spaceColor: string;
   onUserClick?: (userId: Id<"users">) => void;
 }) {
+
   const { camera, pan, zoomBy, worldToScreen } = useCamera();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -173,7 +178,7 @@ function ThreadParticipantsCanvas({
     const height = dimensions.height;
     if (width === 0 || height === 0) return;
 
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = spaceColor;
     ctx.fillRect(0, 0, width, height);
 
     const centerX = width / 2;
@@ -188,33 +193,32 @@ function ThreadParticipantsCanvas({
     const topWorld = camera.y - centerY / camera.zoom;
     const bottomWorld = camera.y + centerY / camera.zoom;
 
-    const drawGrid = (spacingWorld: number, strokeStyle: string) => {
+    const drawDots = (spacingWorld: number, fillStyle: string) => {
       if (!Number.isFinite(spacingWorld) || spacingWorld <= 0) return;
-      ctx.beginPath();
 
       const startX = Math.floor(leftWorld / spacingWorld) * spacingWorld;
       const endX = Math.ceil(rightWorld / spacingWorld) * spacingWorld;
-      for (let x = startX; x <= endX; x += spacingWorld) {
-        const sx = (x - camera.x) * camera.zoom + centerX;
-        ctx.moveTo(sx, 0);
-        ctx.lineTo(sx, height);
-      }
-
       const startY = Math.floor(topWorld / spacingWorld) * spacingWorld;
       const endY = Math.ceil(bottomWorld / spacingWorld) * spacingWorld;
-      for (let y = startY; y <= endY; y += spacingWorld) {
-        const sy = (y - camera.y) * camera.zoom + centerY;
-        ctx.moveTo(0, sy);
-        ctx.lineTo(width, sy);
-      }
 
-      ctx.strokeStyle = strokeStyle;
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      ctx.fillStyle = fillStyle;
+
+      for (let x = startX; x <= endX; x += spacingWorld) {
+        for (let y = startY; y <= endY; y += spacingWorld) {
+          const sx = (x - camera.x) * camera.zoom + centerX;
+          const sy = (y - camera.y) * camera.zoom + centerY;
+
+          if (sx < -5 || sx > width + 5 || sy < -5 || sy > height + 5) continue;
+
+          ctx.beginPath();
+          ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     };
 
     const gridSpacing = minorScreen >= 18 ? minorSpacing : majorSpacing;
-    drawGrid(gridSpacing, "rgba(15, 23, 42, 0.03)");
+    drawDots(gridSpacing, "rgba(92, 74, 66, 0.08)");
 
     const minDim = Math.min(width, height);
     const ringRadius = Math.max(90, minDim * 0.3);
@@ -277,7 +281,7 @@ function ThreadParticipantsCanvas({
         drawSpeechBubble(ctx, x, y, bubble.body);
       }
     }
-  }, [participants, speechBubbles, currentUserPosition, dimensions, camera.zoom, worldToScreen]);
+  }, [participants, speechBubbles, currentUserPosition, dimensions, camera.zoom, worldToScreen, spaceColor]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -363,6 +367,7 @@ export function ThreadOverlay({
   currentUserId,
   joinedAt,
   currentUserPosition,
+  spaceColor,
   onRequestDm,
   onClose,
   onLeave,
@@ -568,6 +573,7 @@ export function ThreadOverlay({
             participants={participants}
             speechBubbles={speechBubbles}
             currentUserPosition={currentUserPosition}
+            spaceColor={spaceColor}
             onUserClick={(userId) => {
               if (!onRequestDm || !currentUserId) return;
               if (userId === currentUserId) return;
