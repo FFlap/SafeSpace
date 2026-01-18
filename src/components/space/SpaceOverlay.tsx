@@ -143,6 +143,7 @@ export function SpaceOverlay({
     x: 0,
     y: 0,
   });
+  const currentUserPositionRef = useRef(currentUserPosition);
   const viewZoomRef = useRef(1);
   const hasSpawnedRef = useRef(false);
 
@@ -214,22 +215,40 @@ export function SpaceOverlay({
   const zoomBounds = { min: minZoom, max: maxZoom };
 
   useEffect(() => {
-    onCurrentUserPositionChange?.(currentUserPosition);
-  }, [currentUserPosition, onCurrentUserPositionChange]);
+    currentUserPositionRef.current = currentUserPosition;
+  }, [currentUserPosition]);
+
+  useEffect(() => {
+    if (currentThreadId) return;
+    setCurrentUserPosition(currentUserPositionRef.current);
+  }, [currentThreadId]);
+
+  const updateCurrentUserPosition = useCallback(
+    (updater: (prev: { x: number; y: number }) => { x: number; y: number }) => {
+      const prev = currentUserPositionRef.current;
+      const next = updater(prev);
+      currentUserPositionRef.current = next;
+      if (!currentThreadId) {
+        setCurrentUserPosition(next);
+      }
+      onCurrentUserPositionChange?.(next);
+    },
+    [currentThreadId, onCurrentUserPositionChange],
+  );
 
   useEffect(() => {
     if (hasSpawnedRef.current) return;
     const radius = Math.max(20, bubbleRadius * 0.2);
     const angle = Math.random() * Math.PI * 2;
     hasSpawnedRef.current = true;
-    setCurrentUserPosition({
+    updateCurrentUserPosition(() => ({
       x: Math.cos(angle) * radius,
       y: Math.sin(angle) * radius,
-    });
-  }, [bubbleRadius]);
+    }));
+  }, [bubbleRadius, updateCurrentUserPosition]);
 
   useEffect(() => {
-    setCurrentUserPosition((prev) => {
+    updateCurrentUserPosition((prev) => {
       const maxRadius = Math.max(0, bubbleRadius - 16);
       const dist = Math.hypot(prev.x, prev.y);
       if (dist <= maxRadius) return prev;
@@ -237,7 +256,7 @@ export function SpaceOverlay({
       const scale = maxRadius / dist;
       return { x: prev.x * scale, y: prev.y * scale };
     });
-  }, [bubbleRadius]);
+  }, [bubbleRadius, updateCurrentUserPosition]);
 
   useKeyboardNav({
     onPan: (dx, dy) => {
@@ -246,7 +265,7 @@ export function SpaceOverlay({
       const stepX = dx / zoom;
       const stepY = dy / zoom;
 
-      setCurrentUserPosition((prev) => {
+      updateCurrentUserPosition((prev) => {
         const next = { x: prev.x + stepX, y: prev.y + stepY };
         const maxRadius = Math.max(0, bubbleRadius - 16);
         const dist = Math.hypot(next.x, next.y);
@@ -273,6 +292,7 @@ export function SpaceOverlay({
           bubbleRadius={bubbleRadius}
           outsideColor="#ffffff"
           useMainCanvasBackground
+          renderEnabled={!currentThreadId}
           currentUserPosition={currentUserPosition}
           speechBubbles={speechBubbles}
           keyboardEnabled={false}
@@ -348,7 +368,7 @@ export function SpaceOverlay({
           presence={presence}
           currentUserId={currentUserId}
           joinedAt={threadJoinedAt}
-          currentUserPosition={currentUserPosition}
+          currentUserPositionRef={currentUserPositionRef}
           bubbleColor={bubbleColor}
           onRequestDm={onRequestDm}
           onClose={onCloseThread}

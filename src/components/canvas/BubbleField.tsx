@@ -50,9 +50,11 @@ export function BubbleField({
       cancelAnimationFrame(focusAnimationRef.current);
     }
 
-    const { x: startX, y: startY } = cameraRef.current;
+    const { x: startX, y: startY, zoom: startZoom } = cameraRef.current;
     const deltaX = target.x - startX;
     const deltaY = target.y - startY;
+    const targetZoom = Math.max(startZoom, 0.7);
+    const deltaZoom = targetZoom - startZoom;
     const start = performance.now();
     const duration = 520;
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -64,6 +66,7 @@ export function BubbleField({
         ...prev,
         x: startX + deltaX * eased,
         y: startY + deltaY * eased,
+        zoom: startZoom + deltaZoom * eased,
       }));
 
       if (progress < 1) {

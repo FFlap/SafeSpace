@@ -32,6 +32,7 @@ interface SpeckFieldProps {
     screenToWorld: (x: number, y: number) => { x: number; y: number }
   ) => void;
   useMainCanvasBackground?: boolean;
+  renderEnabled?: boolean;
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -158,6 +159,7 @@ export function SpeckField({
   onViewTransform,
   onScreenToWorldReady,
   useMainCanvasBackground = false,
+  renderEnabled = true,
 }: SpeckFieldProps) {
   const { camera, pan, zoomBy, screenToWorld, worldToScreen, setCamera } = useCamera();
   const [isDragging, setIsDragging] = useState(false);
@@ -241,6 +243,7 @@ export function SpeckField({
 
   // Handle resize
   useEffect(() => {
+    if (!renderEnabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -651,6 +654,7 @@ export function SpeckField({
     dimensions,
     worldToScreen,
     getSmoothedPosition,
+    renderEnabled,
   ]);
 
   // Mouse drag handling

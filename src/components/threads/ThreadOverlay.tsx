@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Eye, EyeOff, LogOut, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +56,7 @@ interface ThreadOverlayProps {
   presence: PresenceUser[];
   currentUserId: Id<"users"> | null;
   joinedAt: number;
-  currentUserPosition?: { x: number; y: number };
+  currentUserPositionRef?: RefObject<{ x: number; y: number }>;
   bubbleColor: string;
   onRequestDm?: (userId: Id<"users">) => void;
   onClose: () => void;
@@ -161,9 +161,11 @@ function drawSpeechBubble(
 function ThreadParticipantsCanvas({
   participants,
   speechBubbles,
-  currentUserPosition,
+  presence,
+  currentUserPositionRef,
   bubbleColor,
   onUserClick,
+  interactionsEnabled = true,
 }: {
   participants: Participant[];
   speechBubbles?: Array<{
@@ -171,11 +173,13 @@ function ThreadParticipantsCanvas({
     body: string;
     createdAt: number;
   }>;
-  currentUserPosition?: { x: number; y: number };
+  presence: PresenceUser[];
+  currentUserPositionRef?: RefObject<{ x: number; y: number }>;
   bubbleColor: string;
   onUserClick?: (userId: Id<"users">) => void;
+  interactionsEnabled?: boolean;
 }) {
-  const { camera, pan, zoomBy, worldToScreen } = useCamera();
+  const { camera, pan, zoomBy } = useCamera();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const hitAreasRef = useRef<
@@ -185,8 +189,45 @@ function ThreadParticipantsCanvas({
   const lastMousePos = useRef({ x: 0, y: 0 });
   const mouseDownPos = useRef({ x: 0, y: 0 });
   const didDrag = useRef(false);
+  const participantsRef = useRef(participants);
+  const speechBubblesRef = useRef(speechBubbles);
+  const bubbleColorRef = useRef(bubbleColor);
+  const cameraRef = useRef(camera);
+  const presenceRef = useRef(presence);
+  const smoothedPositionsRef = useRef(new Map<string, { x: number; y: number }>());
 
   useDisableBrowserZoom(true);
+
+  useEffect(() => {
+    participantsRef.current = participants;
+  }, [participants]);
+
+  useEffect(() => {
+    speechBubblesRef.current = speechBubbles;
+  }, [speechBubbles]);
+
+  useEffect(() => {
+    bubbleColorRef.current = bubbleColor;
+  }, [bubbleColor]);
+
+  useEffect(() => {
+    cameraRef.current = camera;
+  }, [camera]);
+
+  useEffect(() => {
+    presenceRef.current = presence;
+  }, [presence]);
+
+  const getSmoothedPosition = (userId: string, target: { x: number; y: number }) => {
+    const last = smoothedPositionsRef.current.get(userId) ?? target;
+    const ease = 0.18;
+    const next = {
+      x: last.x + (target.x - last.x) * ease,
+      y: last.y + (target.y - last.y) * ease,
+    };
+    smoothedPositionsRef.current.set(userId, next);
+    return next;
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -212,128 +253,149 @@ function ThreadParticipantsCanvas({
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const width = dimensions.width;
-    const height = dimensions.height;
-    if (width === 0 || height === 0) return;
+    let animationFrameId: number;
 
-    ctx.fillStyle = bubbleColor;
-    ctx.fillRect(0, 0, width, height);
+    const render = () => {
+      const width = dimensions.width;
+      const height = dimensions.height;
+      if (width === 0 || height === 0) {
+        animationFrameId = window.requestAnimationFrame(render);
+        return;
+      }
 
-    const centerX = width / 2;
-    const centerY = height / 2;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const minorSpacing = 80;
-    const majorSpacing = minorSpacing * 5;
-    const minorScreen = minorSpacing * camera.zoom;
+      const cameraSnapshot = cameraRef.current;
+      const participantsSnapshot = participantsRef.current;
+      const bubblesSnapshot = speechBubblesRef.current;
+      const bubbleFill = bubbleColorRef.current;
+      const currentPos = currentUserPositionRef?.current;
+      const presenceSnapshot = presenceRef.current;
+      const presenceMap = new Map(
+        presenceSnapshot.map((p) => [p.userId, p.position] as const),
+      );
 
-    const leftWorld = camera.x - centerX / camera.zoom;
-    const rightWorld = camera.x + centerX / camera.zoom;
-    const topWorld = camera.y - centerY / camera.zoom;
-    const bottomWorld = camera.y + centerY / camera.zoom;
+      ctx.fillStyle = bubbleFill;
+      ctx.fillRect(0, 0, width, height);
 
-    const drawDots = (spacingWorld: number, fillStyle: string) => {
-      if (!Number.isFinite(spacingWorld) || spacingWorld <= 0) return;
+      const centerX = width / 2;
+      const centerY = height / 2;
 
-      const startX = Math.floor(leftWorld / spacingWorld) * spacingWorld;
-      const endX = Math.ceil(rightWorld / spacingWorld) * spacingWorld;
-      const startY = Math.floor(topWorld / spacingWorld) * spacingWorld;
-      const endY = Math.ceil(bottomWorld / spacingWorld) * spacingWorld;
+      const minorSpacing = 80;
+      const majorSpacing = minorSpacing * 5;
+      const minorScreen = minorSpacing * cameraSnapshot.zoom;
 
-      ctx.fillStyle = fillStyle;
+      const leftWorld = cameraSnapshot.x - centerX / cameraSnapshot.zoom;
+      const rightWorld = cameraSnapshot.x + centerX / cameraSnapshot.zoom;
+      const topWorld = cameraSnapshot.y - centerY / cameraSnapshot.zoom;
+      const bottomWorld = cameraSnapshot.y + centerY / cameraSnapshot.zoom;
 
-      for (let x = startX; x <= endX; x += spacingWorld) {
-        for (let y = startY; y <= endY; y += spacingWorld) {
-          const sx = (x - camera.x) * camera.zoom + centerX;
-          const sy = (y - camera.y) * camera.zoom + centerY;
+      const drawDots = (spacingWorld: number, fillStyle: string) => {
+        if (!Number.isFinite(spacingWorld) || spacingWorld <= 0) return;
 
-          if (sx < -5 || sx > width + 5 || sy < -5 || sy > height + 5) continue;
+        const startX = Math.floor(leftWorld / spacingWorld) * spacingWorld;
+        const endX = Math.ceil(rightWorld / spacingWorld) * spacingWorld;
+        const startY = Math.floor(topWorld / spacingWorld) * spacingWorld;
+        const endY = Math.ceil(bottomWorld / spacingWorld) * spacingWorld;
 
+        ctx.fillStyle = fillStyle;
+
+        for (let x = startX; x <= endX; x += spacingWorld) {
+          for (let y = startY; y <= endY; y += spacingWorld) {
+            const sx = (x - cameraSnapshot.x) * cameraSnapshot.zoom + centerX;
+            const sy = (y - cameraSnapshot.y) * cameraSnapshot.zoom + centerY;
+
+            if (sx < -5 || sx > width + 5 || sy < -5 || sy > height + 5) continue;
+
+            ctx.beginPath();
+            ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      };
+
+      const gridSpacing = minorScreen >= 18 ? minorSpacing : majorSpacing;
+      drawDots(gridSpacing, "rgba(92, 74, 66, 0.08)");
+
+      const minDim = Math.min(width, height);
+      const ringRadius = Math.max(90, minDim * 0.3);
+      const jitter = Math.max(30, minDim * 0.12);
+
+      hitAreasRef.current = [];
+
+      ctx.font = `500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      const now = Date.now();
+
+      for (const participant of participantsSnapshot) {
+        let worldX: number;
+        let worldY: number;
+        if (participant.isCurrentUser && currentPos) {
+          worldX = currentPos.x;
+          worldY = currentPos.y;
+        } else {
+          const presencePos = presenceMap.get(participant.userId);
+          if (presencePos) {
+            const smoothed = getSmoothedPosition(participant.userId, presencePos);
+            worldX = smoothed.x;
+            worldY = smoothed.y;
+          } else {
+            const h1 = hashString(`${participant.userId}-a`) / 0xffffffff;
+            const h2 = hashString(`${participant.userId}-b`) / 0xffffffff;
+            const angle = h1 * Math.PI * 2;
+            const r = ringRadius + (h2 - 0.5) * jitter;
+            worldX = Math.cos(angle) * r;
+            worldY = Math.sin(angle) * r;
+          }
+        }
+
+        const x = (worldX - cameraSnapshot.x) * cameraSnapshot.zoom + centerX;
+        const y = (worldY - cameraSnapshot.y) * cameraSnapshot.zoom + centerY;
+
+        const radius = (participant.isCurrentUser ? 9 : 7) * cameraSnapshot.zoom;
+        const fillColor = participant.isActive ? "#FAF5F2" : "#C4B8B0";
+
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(92, 74, 66, 0.2)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        hitAreasRef.current.push({
+          userId: participant.userId,
+          x,
+          y,
+          r: Math.max(12, radius + 6),
+        });
+
+        if (participant.isCurrentUser) {
           ctx.beginPath();
-          ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(253, 248, 245, 0.5)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
+        const bubble = bubblesSnapshot?.find((b) => b.userId === participant.userId);
+        if (bubble && now - bubble.createdAt <= 2800) {
+          drawSpeechBubble(ctx, x, y, bubble.body);
         }
       }
+
+      animationFrameId = window.requestAnimationFrame(render);
     };
 
-    const gridSpacing = minorScreen >= 18 ? minorSpacing : majorSpacing;
-    drawDots(gridSpacing, "rgba(92, 74, 66, 0.08)");
-
-    const minDim = Math.min(width, height);
-    const ringRadius = Math.max(90, minDim * 0.3);
-    const jitter = Math.max(30, minDim * 0.12);
-
-    hitAreasRef.current = [];
-
-    ctx.font = `500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    const now = Date.now();
-
-    for (const participant of participants) {
-      let worldX: number;
-      let worldY: number;
-      if (participant.isCurrentUser && currentUserPosition) {
-        worldX = currentUserPosition.x;
-        worldY = currentUserPosition.y;
-      } else {
-        const h1 = hashString(`${participant.userId}-a`) / 0xffffffff;
-        const h2 = hashString(`${participant.userId}-b`) / 0xffffffff;
-        const angle = h1 * Math.PI * 2;
-        const r = ringRadius + (h2 - 0.5) * jitter;
-        worldX = Math.cos(angle) * r;
-        worldY = Math.sin(angle) * r;
-      }
-      const screen = worldToScreen(worldX, worldY, width, height);
-      const x = screen.x;
-      const y = screen.y;
-
-      const radius = (participant.isCurrentUser ? 9 : 7) * camera.zoom;
-      const fillColor = participant.isActive ? "#FAF5F2" : "#C4B8B0";
-
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = fillColor;
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(92, 74, 66, 0.2)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      hitAreasRef.current.push({
-        userId: participant.userId,
-        x,
-        y,
-        r: Math.max(12, radius + 6),
-      });
-
-      if (participant.isCurrentUser) {
-        ctx.beginPath();
-        ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(253, 248, 245, 0.5)";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-
-      const bubble = speechBubbles?.find(
-        (b) => b.userId === participant.userId,
-      );
-      if (bubble && now - bubble.createdAt <= 2800) {
-        drawSpeechBubble(ctx, x, y, bubble.body);
-      }
-    }
-  }, [
-    participants,
-    speechBubbles,
-    currentUserPosition,
-    dimensions,
-    camera.zoom,
-    worldToScreen,
-    bubbleColor,
-  ]);
+    animationFrameId = window.requestAnimationFrame(render);
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [dimensions.width, dimensions.height, currentUserPositionRef]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (!interactionsEnabled) return;
     setIsDragging(true);
     lastMousePos.current = { x: e.clientX, y: e.clientY };
     mouseDownPos.current = { x: e.clientX, y: e.clientY };
@@ -341,6 +403,7 @@ function ThreadParticipantsCanvas({
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (!interactionsEnabled) return;
     if (!isDragging) return;
 
     const dx = e.clientX - lastMousePos.current.x;
@@ -357,8 +420,14 @@ function ThreadParticipantsCanvas({
     lastMousePos.current = { x: e.clientX, y: e.clientY };
   };
 
-  const handleMouseUp = () => setIsDragging(false);
-  const handleMouseLeave = () => setIsDragging(false);
+  const handleMouseUp = () => {
+    if (!interactionsEnabled) return;
+    setIsDragging(false);
+  };
+  const handleMouseLeave = () => {
+    if (!interactionsEnabled) return;
+    setIsDragging(false);
+  };
 
   const handleClick = (e: React.MouseEvent) => {
     if (!onUserClick || didDrag.current) return;
@@ -383,6 +452,7 @@ function ThreadParticipantsCanvas({
   };
 
   const handleWheel = (e: React.WheelEvent) => {
+    if (!interactionsEnabled) return;
     e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -399,7 +469,13 @@ function ThreadParticipantsCanvas({
     <canvas
       ref={canvasRef}
       className="w-full h-full"
-      style={{ cursor: isDragging ? "grabbing" : "grab" }}
+      style={{
+        cursor: interactionsEnabled
+          ? isDragging
+            ? "grabbing"
+            : "grab"
+          : "default",
+      }}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -410,18 +486,18 @@ function ThreadParticipantsCanvas({
   );
 }
 
-export function ThreadOverlay({
+const ThreadOverlayInner = ({
   threadId,
   threadDescription,
   presence,
   currentUserId,
   joinedAt,
-  currentUserPosition,
+  currentUserPositionRef,
   bubbleColor,
   onRequestDm,
   onClose,
   onLeave,
-}: ThreadOverlayProps) {
+}: ThreadOverlayProps) => {
   const { messages } = useThreadMessages(threadId, {
     since: joinedAt,
     limit: 200,
@@ -766,16 +842,18 @@ export function ThreadOverlay({
               </Button>
             </div>
           </div>
-        </div>
+      </div>
 
-        {/* Participants canvas */}
-        <div className="flex-1">
-          <ThreadParticipantsCanvas
-            participants={participants}
-            speechBubbles={speechBubbles}
-            currentUserPosition={currentUserPosition}
-            bubbleColor={softenedBubbleColor}
-            onUserClick={(userId) => {
+      {/* Participants canvas */}
+      <div className="flex-1">
+        <ThreadParticipantsCanvas
+          participants={participants}
+          speechBubbles={speechBubbles}
+          presence={presence}
+          currentUserPositionRef={currentUserPositionRef}
+          bubbleColor={softenedBubbleColor}
+          interactionsEnabled={false}
+          onUserClick={(userId) => {
               if (!onRequestDm || !currentUserId) return;
               if (userId === currentUserId) return;
               void Promise.resolve(onRequestDm(userId)).catch(() => {});
@@ -785,4 +863,6 @@ export function ThreadOverlay({
       </div>
     </div>
   );
-}
+};
+
+export const ThreadOverlay = memo(ThreadOverlayInner);

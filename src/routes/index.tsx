@@ -12,9 +12,13 @@ function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary/20">
-                <span className="material-symbols-outlined hand-drawn-icon text-2xl">nest_eco_leaf</span>
-              </div>
+              <span className="h-10 w-10 rounded-2xl overflow-hidden shadow-xl shadow-primary/20">
+                <img
+                  src="/SafeSpaceLogo.png"
+                  alt="SafeSpace logo"
+                  className="h-full w-full object-contain"
+                />
+              </span>
               <span className="text-2xl font-bold tracking-tight text-deep-blue font-display">SafeSpace</span>
             </div>
             <div className="hidden md:flex items-center space-x-10 text-sm font-bold text-deep-gray">
@@ -276,9 +280,13 @@ function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-16">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white">
-                <span className="material-symbols-outlined hand-drawn-icon text-xl">nest_eco_leaf</span>
-              </div>
+              <span className="h-10 w-10 rounded-xl overflow-hidden">
+                <img
+                  src="/SafeSpaceLogo.png"
+                  alt="SafeSpace logo"
+                  className="h-full w-full object-contain"
+                />
+              </span>
               <span className="text-2xl font-bold tracking-tight text-deep-blue font-display">SafeSpace</span>
             </div>
             <div className="flex flex-wrap justify-center gap-x-12 gap-y-6 text-sm font-bold text-slate-500 font-display">

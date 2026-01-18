@@ -8,10 +8,17 @@ import { SpaceOverlay } from "@/components/space/SpaceOverlay";
 import { InboxSidebar } from "@/components/dms/InboxSidebar";
 import { Button } from "@/components/ui/button";
 import { useSpaces, useSpace } from "@/hooks/useSpaces";
-import { useThreads, useMyThreadMemberships, useThreadMutations } from "@/hooks/useThreads";
+import {
+  useThreads,
+  useMyThreadMemberships,
+  useThreadMutations,
+} from "@/hooks/useThreads";
 import { usePresence, useSpacePresence } from "@/hooks/usePresence";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useDmMutations, useIncomingDmRequests } from "@/hooks/useDirectMessages";
+import {
+  useDmMutations,
+  useIncomingDmRequests,
+} from "@/hooks/useDirectMessages";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -23,28 +30,38 @@ function FieldPage() {
   const navigate = useNavigate();
   const { spaces, isLoading: spacesLoading } = useSpaces();
   const { user } = useCurrentUser();
-  const createSpaceAndRecluster = useAction(api.spaces.actions.createSpaceAndRecluster);
+  const createSpaceAndRecluster = useAction(
+    api.spaces.actions.createSpaceAndRecluster,
+  );
   const [spaceSearch, setSpaceSearch] = useState("");
   const [showResults, setShowResults] = useState(false);
   const [activeResultIndex, setActiveResultIndex] = useState(0);
   const [focusSpaceId, setFocusSpaceId] = useState<string | null>(null);
   const [focusRequestId, setFocusRequestId] = useState(0);
 
-  const [selectedSpaceId, setSelectedSpaceId] = useState<Id<"spaces"> | null>(null);
-  const [currentThreadId, setCurrentThreadId] = useState<Id<"spaceThreads"> | null>(null);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<Id<"spaces"> | null>(
+    null,
+  );
+  const [currentThreadId, setCurrentThreadId] =
+    useState<Id<"spaceThreads"> | null>(null);
   const [inboxOpen, setInboxOpen] = useState(false);
-  const [activeDmConversationId, setActiveDmConversationId] = useState<
-    Id<"dmConversations"> | null
-  >(null);
-  const currentUserPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [activeDmConversationId, setActiveDmConversationId] =
+    useState<Id<"dmConversations"> | null>(null);
+  const currentUserPositionRef = useRef<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
 
-  const handleCurrentUserPositionChange = useCallback((pos: { x: number; y: number }) => {
-    currentUserPositionRef.current = pos;
-  }, []);
+  const handleCurrentUserPositionChange = useCallback(
+    (pos: { x: number; y: number }) => {
+      currentUserPositionRef.current = pos;
+    },
+    [],
+  );
 
   const getCurrentUserPosition = useCallback(
     () => currentUserPositionRef.current,
-    []
+    [],
   );
 
   const { space: selectedSpace } = useSpace(selectedSpaceId);
@@ -53,7 +70,9 @@ function FieldPage() {
   useMyThreadMemberships(user?._id ?? null);
   const { createThread, joinThread, leaveThread } = useThreadMutations();
   const { requestDm } = useDmMutations();
-  const { requests: incomingDmRequests } = useIncomingDmRequests(user?._id ?? null);
+  const { requests: incomingDmRequests } = useIncomingDmRequests(
+    user?._id ?? null,
+  );
 
   // Presence tracking
   usePresence({
@@ -86,7 +105,7 @@ function FieldPage() {
 
       setCurrentThreadId(threadId);
     },
-    [selectedSpaceId, user, createThread]
+    [selectedSpaceId, user, createThread],
   );
 
   const handleThreadClick = useCallback(
@@ -100,7 +119,7 @@ function FieldPage() {
       });
       setCurrentThreadId(threadId);
     },
-    [user, joinThread]
+    [user, joinThread],
   );
 
   const handleLeaveThread = useCallback(
@@ -116,7 +135,7 @@ function FieldPage() {
         userId: user._id,
       });
     },
-    [user, leaveThread, currentThreadId]
+    [user, leaveThread, currentThreadId],
   );
 
   const handleCloseThread = useCallback(() => {
@@ -124,22 +143,28 @@ function FieldPage() {
   }, []);
 
   const handleCloseInbox = useCallback(() => setInboxOpen(false), []);
-  const handleBackToInbox = useCallback(() => setActiveDmConversationId(null), []);
+  const handleBackToInbox = useCallback(
+    () => setActiveDmConversationId(null),
+    [],
+  );
 
   const normalizedSearch = (spaceSearch ?? "").trim().toLowerCase();
   const exactMatch = normalizedSearch
-    ? spaces.find((space) => space.name.trim().toLowerCase() === normalizedSearch)
+    ? spaces.find(
+        (space) => space.name.trim().toLowerCase() === normalizedSearch,
+      )
     : null;
 
   const matches = normalizedSearch
     ? spaces
         .filter((space) =>
-          space.name.trim().toLowerCase().includes(normalizedSearch)
+          space.name.trim().toLowerCase().includes(normalizedSearch),
         )
         .slice(0, 5)
     : [];
 
-  const resultsCount = matches.length + (normalizedSearch && !exactMatch ? 1 : 0);
+  const resultsCount =
+    matches.length + (normalizedSearch && !exactMatch ? 1 : 0);
 
   const tagsFromName = useCallback((name?: string | null) => {
     const tokens = String(name ?? "")
@@ -177,20 +202,20 @@ function FieldPage() {
     setActiveResultIndex(0);
   }, [normalizedSearch]);
 
-  const handleSelectSpace = useCallback(
-    (spaceId: string) => {
-      setSpaceSearch("");
-      setShowResults(false);
-      setFocusSpaceId(spaceId);
-      setFocusRequestId((prev) => prev + 1);
-    },
-    []
-  );
-
-  const handleOpenDmConversation = useCallback((conversationId: Id<"dmConversations">) => {
-    setActiveDmConversationId(conversationId);
-    setInboxOpen(true);
+  const handleSelectSpace = useCallback((spaceId: string) => {
+    setSpaceSearch("");
+    setShowResults(false);
+    setFocusSpaceId(spaceId);
+    setFocusRequestId((prev) => prev + 1);
   }, []);
+
+  const handleOpenDmConversation = useCallback(
+    (conversationId: Id<"dmConversations">) => {
+      setActiveDmConversationId(conversationId);
+      setInboxOpen(true);
+    },
+    [],
+  );
 
   const handleRequestDm = useCallback(
     async (otherUserId: Id<"users">) => {
@@ -198,12 +223,15 @@ function FieldPage() {
       const res = (await requestDm({
         fromUserId: user._id,
         toUserId: otherUserId,
-      })) as { conversationId: Id<"dmConversations"> | null; requestId: string | null };
+      })) as {
+        conversationId: Id<"dmConversations"> | null;
+        requestId: string | null;
+      };
 
       setInboxOpen(true);
       setActiveDmConversationId(res.conversationId ?? null);
     },
-    [user?._id, requestDm]
+    [user?._id, requestDm],
   );
 
   // Loading state
@@ -220,7 +248,9 @@ function FieldPage() {
       <SignedOut>
         <div className="absolute inset-0 bg-[#3D3637]/90 backdrop-blur flex items-center justify-center z-50">
           <div className="text-center space-y-6">
-            <h2 className="text-2xl font-bold text-white">Welcome to Bubble Spaces</h2>
+            <h2 className="text-2xl font-bold text-white">
+              Welcome to Bubble Spaces
+            </h2>
             <p className="text-[#C4B8B0]">Sign in to join the conversation</p>
             <SignInButton mode="modal">
               <button className="bg-[#9B8B7E] hover:bg-[#8A7A6E] px-6 py-3 rounded-xl font-medium text-white transition-colors">
@@ -236,11 +266,18 @@ function FieldPage() {
         <div className="fixed top-0 left-0 right-0 z-[200] h-16 px-4 flex items-center justify-between bg-[#3D3637]/95 border-b border-[#C4B8B0]/20 pointer-events-none">
           <button
             onClick={() => navigate({ to: "/" })}
-            className="text-xl font-bold text-white hover:text-[#C4B8B0] transition-colors pointer-events-auto"
+            className="flex items-center gap-2 text-xl font-bold text-white hover:text-[#C4B8B0] transition-colors pointer-events-auto"
           >
-            HackTheBias
+            <span className="h-11 w-11 shrink-0 rounded-md overflow-hidden">
+              <img
+                src="/SafeSpaceLogo.png"
+                alt="SafeSpace logo"
+                className="h-full w-full object-contain"
+              />
+            </span>
+            <span>SafeSpace</span>
           </button>
-          <div className="text-[#C4B8B0] text-sm pointer-events-auto hidden md:block">
+          <div className="text-[#C4B8B0] text-sm font-display pointer-events-auto hidden md:block">
             Use WASD or arrows to move, +/- to zoom
           </div>
           <div className="pointer-events-auto">
@@ -276,7 +313,8 @@ function FieldPage() {
             <div
               onMouseDown={(e) => e.preventDefault()}
               className={`absolute bottom-12 left-0 right-0 space-y-2 rounded-2xl border border-white/10 bg-[#3D3637]/40 backdrop-blur-xl px-3 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.25)] transition-all duration-200 ${
-                showResults && (matches.length > 0 || (normalizedSearch && !exactMatch))
+                showResults &&
+                (matches.length > 0 || (normalizedSearch && !exactMatch))
                   ? "opacity-100 translate-y-0"
                   : "pointer-events-none opacity-0 translate-y-2"
               }`}
@@ -306,7 +344,9 @@ function FieldPage() {
                       : "border-white/10 bg-white/10 hover:bg-white/20"
                   }`}
                 >
-                  <span className="truncate">Create “{spaceSearch.trim()}”</span>
+                  <span className="truncate">
+                    Create “{spaceSearch.trim()}”
+                  </span>
                   <span className="text-xs text-white/50">New Space</span>
                 </button>
               )}
@@ -330,8 +370,8 @@ function FieldPage() {
                   }
                   if (e.key === "ArrowUp") {
                     e.preventDefault();
-                    setActiveResultIndex((prev) =>
-                      (prev - 1 + resultsCount) % resultsCount
+                    setActiveResultIndex(
+                      (prev) => (prev - 1 + resultsCount) % resultsCount,
                     );
                   }
                   if (e.key === "Enter") {
