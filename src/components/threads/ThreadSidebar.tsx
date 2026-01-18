@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,35 @@ export function ThreadSidebar({
   const [searchTerm, setSearchTerm] = useState("");
   const [newThreadDescription, setNewThreadDescription] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const el = descriptionRef.current;
+    if (!el) return;
+
+    el.style.height = "auto";
+
+    const computed = window.getComputedStyle(el);
+    const lineHeightRaw = Number.parseFloat(computed.lineHeight);
+    const paddingTopRaw = Number.parseFloat(computed.paddingTop);
+    const paddingBottomRaw = Number.parseFloat(computed.paddingBottom);
+    const borderTopRaw = Number.parseFloat(computed.borderTopWidth);
+    const borderBottomRaw = Number.parseFloat(computed.borderBottomWidth);
+
+    const lineHeight = Number.isFinite(lineHeightRaw) ? lineHeightRaw : 20;
+    const paddingTop = Number.isFinite(paddingTopRaw) ? paddingTopRaw : 0;
+    const paddingBottom = Number.isFinite(paddingBottomRaw) ? paddingBottomRaw : 0;
+    const borderTop = Number.isFinite(borderTopRaw) ? borderTopRaw : 0;
+    const borderBottom = Number.isFinite(borderBottomRaw) ? borderBottomRaw : 0;
+
+    const maxHeight = lineHeight * 4 + paddingTop + paddingBottom + borderTop + borderBottom;
+    const scrollBoxHeight = el.scrollHeight + borderTop + borderBottom;
+    const nextHeight = Math.min(scrollBoxHeight, maxHeight);
+
+    el.style.height = `${nextHeight}px`;
+    el.style.overflowY = scrollBoxHeight > maxHeight + 1 ? "auto" : "hidden";
+  }, [dialogOpen, newThreadDescription]);
 
   const handleCreateThread = () => {
     if (newThreadDescription.trim()) {
@@ -66,14 +95,19 @@ export function ThreadSidebar({
                 <DialogTitle className="text-white">Start a Talk</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
-                <Input
+                <Textarea
+                  ref={descriptionRef}
                   placeholder="What do you want to talk about?"
                   value={newThreadDescription}
                   onChange={(e) => setNewThreadDescription(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCreateThread();
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleCreateThread();
+                    }
                   }}
-                  className="bg-white/10 border-white/10 text-white placeholder:text-white/40"
+                  rows={1}
+                  className="bg-white/10 border-white/10 text-white placeholder:text-white/40 resize-none overflow-x-hidden break-words"
                 />
                 <div className="flex justify-end gap-2">
                   <Button
