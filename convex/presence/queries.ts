@@ -28,6 +28,29 @@ export const getSpacePresence = query({
   },
 });
 
+export const listActivePresenceCounts = query({
+  args: {},
+  handler: async (ctx) => {
+    const thirtySecondsAgo = Date.now() - 30000;
+
+    const presence = await ctx.db
+      .query("spacePresence")
+      .filter((q) => q.gt(q.field("lastSeen"), thirtySecondsAgo))
+      .collect();
+
+    const counts = new Map<string, number>();
+    for (const p of presence) {
+      const spaceId = p.spaceId as unknown as string;
+      counts.set(spaceId, (counts.get(spaceId) ?? 0) + 1);
+    }
+
+    return Array.from(counts, ([spaceId, activeUserCount]) => ({
+      spaceId: spaceId as any,
+      activeUserCount,
+    }));
+  },
+});
+
 export const getMyPresence = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
