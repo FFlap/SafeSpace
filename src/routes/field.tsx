@@ -27,6 +27,8 @@ function FieldPage() {
   const [spaceSearch, setSpaceSearch] = useState("");
   const [showResults, setShowResults] = useState(false);
   const [activeResultIndex, setActiveResultIndex] = useState(0);
+  const [focusSpaceId, setFocusSpaceId] = useState<string | null>(null);
+  const [focusRequestId, setFocusRequestId] = useState(0);
 
   const [selectedSpaceId, setSelectedSpaceId] = useState<Id<"spaces"> | null>(null);
   const [currentThreadId, setCurrentThreadId] = useState<Id<"spaceThreads"> | null>(null);
@@ -179,9 +181,10 @@ function FieldPage() {
     (spaceId: string) => {
       setSpaceSearch("");
       setShowResults(false);
-      handleSpaceClick(spaceId);
+      setFocusSpaceId(spaceId);
+      setFocusRequestId((prev) => prev + 1);
     },
-    [handleSpaceClick]
+    []
   );
 
   const handleOpenDmConversation = useCallback((conversationId: Id<"dmConversations">) => {
@@ -264,6 +267,8 @@ function FieldPage() {
           onSpaceClick={handleSpaceClick}
           overlayOpen={!!selectedSpaceId}
           onEscape={handleCloseOverlay}
+          focusSpaceId={focusSpaceId}
+          focusRequestId={focusRequestId}
         />
 
         {!selectedSpaceId && (
